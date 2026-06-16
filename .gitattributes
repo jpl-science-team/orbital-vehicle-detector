@@ -1,0 +1,2 @@
+data/*.zip filter=lfs diff=lfs merge=lfs -text
+data/20260615_42_cowc_base.zip filter=lfs diff=lfs merge=lfs -text
