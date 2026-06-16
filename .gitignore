@@ -172,3 +172,12 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+#data
+/packaged_data20260615_42_cowc_base/
+data/
+runs/
+.venv/
+data/20260615_42_cowc_base/
+runs/
+.venv/

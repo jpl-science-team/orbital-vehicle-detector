@@ -1,0 +1,26 @@
+# ------------------------------------------------------------------------------
+# Core Deep Learning & Computer Vision Frameworks
+# ------------------------------------------------------------------------------
+ultralytics==8.2.32       # Core YOLOv8 engine for training and inference
+torch==2.3.1              # PyTorch backend (Compatible with both MPS and CUDA)
+torchvision==0.18.1       # Vision transforms and utils mapped to torch version
+
+# ------------------------------------------------------------------------------
+# Advanced Data Augmentation
+# ------------------------------------------------------------------------------
+albumentations==1.4.8     # Heavy geometric/pixel augmentations for generalization
+opencv-python-headless==4.9.0.80  # Optimized OpenCV for headless HPC/CLI training
+
+# ------------------------------------------------------------------------------
+# Data Science, Parsing & Utilities
+# ------------------------------------------------------------------------------
+numpy==1.26.4             # Array operations and tensor conversions
+pyyaml==6.0.1             # Parsing and saving your dataset data.yaml files
+pandas==2.2.2             # Parsing the training results.csv artifacts
+matplotlib==3.9.0         # Generating loss curves and confusion matrices
+tqdm==4.66.4              # Progressive training loops and download bars
+
+# ------------------------------------------------------------------------------
+# Optional: Experiment Tracking & Analysis
+# ------------------------------------------------------------------------------
+ipykernel==6.29.4         # Allows running evaluation notebooks in VS Code/Jupyter
