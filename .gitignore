@@ -182,3 +182,11 @@ data/20260615_42_cowc_base/
 runs/
 .venv/
 packaged_data/
+
+# Ignore training runs, weights, and logs
+runs/
+*.pt
+*.log
+
+# Ignore the dataset (assuming 'data' contains your images)
+data/

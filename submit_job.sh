@@ -12,8 +12,8 @@
 cd /home/graddy/repos/orbital-vehicle-detector
 
 # 2. Activate your isolated cluster-side native .venv 
-source .venv/bin/activate
-
+source /home/graddy/miniforge3/etc/profile.d/conda.sh
+conda activate vehicle-detector
 # 3. Upgrade pip and ensure cluster-ready requirements are locked in
 pip install --upgrade pip
 pip install -r requirements.txt
