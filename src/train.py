@@ -1,83 +1,51 @@
-#!/usr/bin/env python3
-
-"""
-=============================================================================
-HOW TO RUN THIS SCRIPT
-=============================================================================
-
-Basic execution (requires image size, GPUs, and the dataset folder name):
-    python train.py --img_size 512 --gpus 1 --dataset 20260615_42_cowc_base
-
-Full execution with optional batch size and epochs:
-    python train.py --img_size 512 --gpus 2 --dataset 20260615_42_cowc_base --batch_size 64 --epochs 150
-
-=============================================================================
-"""
-
-import os
 import argparse
-from pathlib import Path
+import torch
 from ultralytics import YOLO
 
-# ---------------------------------------------------------
-# 1. Paths & Configuration
-# ---------------------------------------------------------
-REPO_ROOT = Path(__file__).resolve().parent.parent
-MODEL_VARIANT = "yolov8n.pt" 
-
 def parse_args():
-    parser = argparse.ArgumentParser(description="YOLOv8 Resolution & Multi-GPU Study")
-    
-    # Required Arguments
-    parser.add_argument("--img_size", type=int, required=True, help="Target imagery resolution (e.g., 256, 512)")
-    parser.add_argument("--gpus", type=int, required=True, help="Number of GPUs to use (e.g., 1 or 2)")
-    parser.add_argument("--dataset", type=str, required=True, help="Name of the dataset folder inside the 'data' directory")
-    
-    # Optional Arguments
-    parser.add_argument("--batch_size", type=int, default=32, help="Batch size per run")
-    parser.add_argument("--epochs", type=int, default=100, help="Total training epochs")
-    
+    parser = argparse.ArgumentParser(description="COWC OBB Resolution Study Training Script")
+    parser.add_argument("--img_size", type=int, default=512, help="Input image resolution size")
+    parser.add_argument("--batch_size", type=int, default=16, help="Training batch size")
+    parser.add_argument("--epochs", type=int, default=100, help="Number of training epochs")
+    parser.add_argument("--data", type=str, default="data/cowc_512/dataset.yaml", help="Path to dataset.yaml")
+    parser.add_argument("--gpus", type=str, default="0,1", help="GPU IDs to use (e.g., '0,1')")
+    parser.add_argument("--workers", type=int, default=4, help="Number of data loader workers")
     return parser.parse_args()
 
 def run_training(args):
-    # Dynamically resolve the dataset path
-    data_yaml_path = REPO_ROOT / "data" / args.dataset / "data.yaml"
-    
-    # Fail fast if the user provided an incorrect dataset name
-    if not data_yaml_path.exists():
-        raise FileNotFoundError(f"🚨 Dataset configuration not found at: {data_yaml_path}")
+    # Set device configuration based on input gpus string
+    if torch.cuda.is_available():
+        device_str = args.gpus
+        workers = args.workers
+    else:
+        device_str = "cpu"
+        workers = 0
 
-    # Format the device string for YOLO (e.g., "0" for 1 GPU, "0,1" for 2 GPUs)
-    device_str = ",".join(str(i) for i in range(args.gpus))
-    
-    # Scale CPU workers dynamically based on the number of GPUs
-    workers = 4 * args.gpus 
+    print(f"--- Starting Oriented Object Detection (OBB) Training ---")
+    print(f"Target Resolution: {args.img_size}x{args.img_size}")
+    print(f"Target Devices:     GPU {device_str}")
+    print(f"Batch Size:         {args.batch_size}")
+    print(f"Dataset Config:     {args.data}\n")
 
-    print("="*60)
-    print(" 🚀 ORBITAL VEHICLE DETECTOR: RESOLUTION STUDY")
-    print("="*60)
-    print(f"Loading Configuration: {data_yaml_path}")
-    print(f"Target Resolution:    {args.img_size}x{args.img_size}")
-    print(f"Target Hardware:      {args.gpus} GPU(s) (CUDA:{device_str})")
-    print(f"Batch Size:           {args.batch_size}")
-    print("-" * 60)
+    # CRITICAL: Initialize with the OBB architecture model weights
+    model = YOLO("yolov8n-obb.pt")
 
-    # Initialize model with pre-trained coco weights
-    model = YOLO(MODEL_VARIANT)
-
-    # Execute training loop
+    # Execute training with strict parameters to protect the resolution study metrics
     model.train(
-        data=str(data_yaml_path),
+        data=args.data,
         epochs=args.epochs,
         batch=args.batch_size,
         imgsz=args.img_size,
         
-        # Directory Management (Dynamically names folder based on resolution)
+        # Explicitly declare Oriented Bounding Box task pipeline
+        task="obb",
+        
+        # Directory Management
         project="runs/detect",
         name=f"20260618_yolov8n_res{args.img_size}",
         exist_ok=True,
         
-        # Isolated Resolution Augmentations (Omitted for Study)
+        # Isolated Resolution Augmentations (frozen to protect study legitimacy)
         scale=0.0,        
         mosaic=0.0,       
         mixup=0.0,        
