@@ -42,7 +42,7 @@ def run_training(args):
         
         # Directory Management
         project="runs/detect",
-        name=f"20260618_yolov8n_res{args.img_size}",
+        name=f"20260622_yolov8n_res{args.img_size}",
         exist_ok=True,
         
         # Isolated Resolution Augmentations (frozen to protect study legitimacy)
