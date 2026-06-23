@@ -45,6 +45,20 @@ def run_training(args):
         name=f"20260622_yolov8n_res{args.img_size}",
         exist_ok=True,
         
+        # --- NEW: Training Stabilization & Regularization ---
+        lr0=0.001,             # Lower initial learning rate to prevent loss spikes
+        cos_lr=True,           # Smooth cosine learning rate curve
+        patience=20,           # Early stopping to lock in peak weights
+        weight_decay=0.0005,   # Penalize overly large weights
+        dropout=0.15,          # Drop nodes in the head to prevent memorization
+        
+        # --- NEW: Safe Aerial Augmentations (No Resolution Impact) ---
+        flipud=0.5,            # Top-down imagery has no "up", safe to flip
+        fliplr=0.5,            # Safe horizontal flip
+        hsv_h=0.015,           # Color/lighting variation
+        hsv_s=0.7,             # Saturation variation
+        hsv_v=0.4,             # Brightness variation
+        
         # Isolated Resolution Augmentations (frozen to protect study legitimacy)
         scale=0.0,        
         mosaic=0.0,       
