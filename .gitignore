@@ -191,3 +191,5 @@ runs/
 # Ignore the dataset (assuming 'data' contains your images)
 data/
 20260615_yolov8n_run.tar.gz
+vehicle-detector/
+vehicle_detector.zip

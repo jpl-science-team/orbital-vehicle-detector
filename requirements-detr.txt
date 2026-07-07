@@ -1,0 +1,12 @@
+# O2-RT-DETR Environment Base
+torch==2.1.0  # Lock this so MMCV doesn't break
+torchvision==0.16.0
+openmim
+
+# --- POST-INSTALL INSTRUCTIONS ---
+# After running 'pip install -r requirements-detr.txt', 
+# you MUST run the following commands sequentially:
+# 1. mim install mmengine
+# 2. mim install "mmcv>=2.0.0"
+# 3. mim install "mmdet>=3.0.0"
+# 4. mim install "mmrotate>=1.0.0rc1"
