@@ -3,7 +3,23 @@ import argparse
 import logging
 import os
 import os.path as osp
+# --- Updated Safe Registry Monkey-Patch ---
+try:
+    import mmdet.structures.bbox.box_type as box_type
+    _orig_register_box_converter = box_type._register_box_converter
 
+    def safe_register_box_converter(*args, **kwargs):
+        try:
+            return _orig_register_box_converter(*args, **kwargs)
+        except KeyError as e:
+            if 'has been registered' in str(e):
+                return None  # Safely ignore duplicate registrations
+            raise e
+
+    box_type._register_box_converter = safe_register_box_converter
+except Exception:
+    pass
+# ------------------------------------------
 from mmengine.registry import Registry
 _orig = Registry._register_module
 def _force(self, module, module_name=None, force=False):

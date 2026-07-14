@@ -182,7 +182,7 @@ data/20260615_42_cowc_base/
 runs/
 .venv/
 packaged_data/
-
+work_dirs/
 # Ignore training runs, weights, and logs
 runs/
 *.pt

@@ -20,18 +20,23 @@ custom_imports = dict(
 model['bbox_head']['num_classes'] = 1
 
 # OVERRIDE DATASET
-train_dataloader['batch_size'] = 16
-train_dataloader['num_workers'] = 4
+metainfo = dict(classes=('vehicle',))  # <-- 1. Define custom class metadata
+
+train_dataloader['batch_size'] = 2
+train_dataloader['num_workers'] = 2
 train_dataloader['dataset']['data_root'] = 'data/cowc_512_detr/'
 train_dataloader['dataset']['ann_file'] = 'train/annfiles/'
-train_dataloader['dataset']['data_prefix'] = dict(img='train/images/')
+train_dataloader['dataset']['data_prefix'] = dict(img_path='train/images/')
+train_dataloader['dataset']['metainfo'] = metainfo  # <-- 2. Inject into train dataset
 
-val_dataloader['batch_size'] = 16
-val_dataloader['num_workers'] = 4
+val_dataloader['batch_size'] = 2
+val_dataloader['num_workers'] = 2
 val_dataloader['dataset']['data_root'] = 'data/cowc_512_detr/'
 val_dataloader['dataset']['ann_file'] = 'val/annfiles/'
-val_dataloader['dataset']['data_prefix'] = dict(img='val/images/')
+val_dataloader['dataset']['data_prefix'] = dict(img_path='val/images/')
+val_dataloader['dataset']['metainfo'] = metainfo  # <-- 3. Inject into val dataset
 
+# This copies val_dataloader configuration, including the new metainfo override
 test_dataloader = val_dataloader.copy()
 
 # OVERRIDE TRAINING SCHEDULE
