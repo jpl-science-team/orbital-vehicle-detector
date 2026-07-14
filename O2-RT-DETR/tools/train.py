@@ -4,6 +4,11 @@ import logging
 import os
 import os.path as osp
 
+from mmengine.registry import Registry
+_orig = Registry._register_module
+def _force(self, module, module_name=None, force=False):
+    _orig(self, module, module_name=module_name, force=True)
+Registry._register_module = _force
 from mmdet.utils import register_all_modules as register_all_modules_mmdet
 from mmengine.config import Config, DictAction
 from mmengine.logging import print_log
