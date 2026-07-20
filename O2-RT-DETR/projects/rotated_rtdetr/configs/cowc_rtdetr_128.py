@@ -1,38 +1,80 @@
-# Inherit everything from your updated 512 base script
-_base_ = ['./cowc_rtdetr_512.py']
+import sys
+import os
+sys.path.append(os.path.abspath('./O2-RT-DETR'))
+sys.path.append(os.path.abspath('./O2-RT-DETR/projects/rotated_rtdetr'))
 
-# Override ONLY the resolution for this study leg
-study_resolution = (128, 128) 
+from mmengine.config import read_base
+with read_base():
+    from .o2_rtdetr_r50vd_2xb4_72e_dota import *
 
-# --- MATCHED AUGMENTATIONS WITH 128 DOWN-SAMPLING ---
-train_pipeline = [
-    dict(type='mmdet.LoadImageFromFile', backend_args=None),
-    dict(type='mmdet.LoadAnnotations', with_bbox=True, box_type='qbox'),
-    
-    # Forces aggressive dynamic downsampling in RAM to 128x128
-    dict(type='mmdet.Resize', scale=study_resolution, keep_ratio=True),
-    
-    # Mirrored YOLO Augmentations
-    dict(type='mmdet.RandomFlip', prob=0.5, direction='horizontal'),
-    dict(type='mmdet.RandomFlip', prob=0.5, direction='vertical'),
-    dict(type='mmdet.RandomRotate', prob=1.0, angle=(-180, 180)), # Fixed typo here
-    dict(
-        type='mmdet.PhotoMetricDistortion',
-        brightness_delta=32,
-        contrast_range=(0.5, 1.5),
-        saturation_range=(0.5, 1.5),
-        hue_delta=18),
-        
-    dict(type='mmdet.PackDetInputs')
-]
+custom_imports = dict(
+    imports=[
+        'mmrotate.visualization.local_visualizer',
+        'projects.rotated_rtdetr.rotated_rtdetr.rotated_rtdetr',
+        'projects.rotated_rtdetr.rotated_rtdetr.rotated_rtdetr_head'
+    ],
+    allow_failed_imports=False
+)
 
-test_pipeline = [
-    dict(type='mmdet.LoadImageFromFile', backend_args=None),
-    dict(type='mmdet.Resize', scale=study_resolution, keep_ratio=True),
-    dict(type='mmdet.PackDetInputs', meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape', 'scale_factor'))
-]
+# OVERRIDE MODEL CLASSES
+model['bbox_head']['num_classes'] = 1
 
-# Re-apply the updated pipelines to the dataloaders
-train_dataloader = dict(dataset=dict(pipeline=train_pipeline))
-val_dataloader = dict(dataset=dict(pipeline=test_pipeline))
-test_dataloader = dict(dataset=dict(pipeline=test_pipeline))
+# OVERRIDE DATASET METAINFO
+metainfo = dict(classes=('vehicle',))  
+
+# CONFIGURE DATALOADERS
+train_dataloader['batch_size'] = 2
+train_dataloader['num_workers'] = 2
+train_dataloader['dataset']['data_root'] = 'data/cowc_512_degraded_dota/'
+train_dataloader['dataset']['ann_file'] = 'train/annfiles/'
+train_dataloader['dataset']['data_prefix'] = dict(img_path='train/images/')
+train_dataloader['dataset']['metainfo'] = metainfo  
+
+val_dataloader['batch_size'] = 2
+val_dataloader['num_workers'] = 2
+val_dataloader['dataset']['data_root'] = 'data/cowc_512_degraded_dota/'
+val_dataloader['dataset']['ann_file'] = 'val/annfiles/'
+val_dataloader['dataset']['data_prefix'] = dict(img_path='val/images/')
+val_dataloader['dataset']['metainfo'] = metainfo  
+
+# =====================================================================
+# SAFELY OVERRIDE RESOLUTION TO 128x128 IN THE EXISTING PIPELINES
+# =====================================================================
+study_resolution = (128, 128)
+
+# Find the Resize step in the inherited train pipeline and change only the scale
+for transform in train_dataloader['dataset']['pipeline']:
+    if 'Resize' in transform['type']:
+        transform['scale'] = study_resolution
+
+# Find the Resize step in the inherited val pipeline and change only the scale
+for transform in val_dataloader['dataset']['pipeline']:
+    if 'Resize' in transform['type']:
+        transform['scale'] = study_resolution
+# =====================================================================
+
+# Copies val_dataloader configuration, including the resized pipeline
+test_dataloader = val_dataloader.copy()
+
+# OVERRIDE TRAINING SCHEDULE
+train_cfg['max_epochs'] = 150
+train_cfg['val_interval'] = 1
+
+# ULTRALYTICS-STYLE CHECKPOINTING (Save only Best and Last)
+default_hooks = dict(
+    checkpoint=dict(
+        type='CheckpointHook',
+        interval=1,
+        max_keep_ckpts=1,      # Deletes all older epochs, keeping only the most recent "last"
+        save_best='dota/mAP',  # Independently saves and updates the "best" model
+        rule='greater',
+        save_last=True         # Generates a 'last_checkpoint' pointer
+    )
+)
+
+visualizer['type'] = 'mmrotate.RotLocalVisualizer'
+work_dir = './work_dirs/20260715_rtdetr_obb_128'
+
+# CLEANUP (Bypasses MMEngine pickling errors)
+del sys
+del os

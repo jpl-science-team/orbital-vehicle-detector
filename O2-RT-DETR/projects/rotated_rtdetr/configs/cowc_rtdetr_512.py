@@ -24,14 +24,14 @@ metainfo = dict(classes=('vehicle',))  # <-- 1. Define custom class metadata
 
 train_dataloader['batch_size'] = 2
 train_dataloader['num_workers'] = 2
-train_dataloader['dataset']['data_root'] = 'data/cowc_512_detr/'
+train_dataloader['dataset']['data_root'] = 'data/cowc_512_degraded_dota/'
 train_dataloader['dataset']['ann_file'] = 'train/annfiles/'
 train_dataloader['dataset']['data_prefix'] = dict(img_path='train/images/')
 train_dataloader['dataset']['metainfo'] = metainfo  # <-- 2. Inject into train dataset
 
 val_dataloader['batch_size'] = 2
 val_dataloader['num_workers'] = 2
-val_dataloader['dataset']['data_root'] = 'data/cowc_512_detr/'
+val_dataloader['dataset']['data_root'] = 'data/cowc_512_degraded_dota/'
 val_dataloader['dataset']['ann_file'] = 'val/annfiles/'
 val_dataloader['dataset']['data_prefix'] = dict(img_path='val/images/')
 val_dataloader['dataset']['metainfo'] = metainfo  # <-- 3. Inject into val dataset
@@ -44,7 +44,7 @@ train_cfg['max_epochs'] = 150
 train_cfg['val_interval'] = 1
 
 visualizer['type'] = 'mmrotate.RotLocalVisualizer'
-work_dir = './work_dirs/cowc_rtdetr_512'
+work_dir = './work_dirs/20260715_rtdetr_obb_512'
 
 # CLEANUP (Bypasses MMEngine pickling errors)
 del sys

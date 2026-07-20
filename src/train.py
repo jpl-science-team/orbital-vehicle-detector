@@ -53,7 +53,7 @@ def run_training(args):
         
         # Directory Management
         project="runs/detect",
-        name=f"20260707_yolo11n_res{args.img_size}",
+        name=f"20260714_yolo11n_res{args.img_size}",
         exist_ok=True,
         
         # --- OBB Training Stabilization & Regularization ---
