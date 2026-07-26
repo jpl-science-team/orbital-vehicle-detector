@@ -76,7 +76,7 @@ def probiou(obb1: torch.Tensor, obb2: torch.Tensor, CIoU: bool = False, eps: flo
         return iou - v * alpha  # CIoU
     return iou
 
-def batch_probiou(obb1: torch.Tensor | np.ndarray, obb2: torch.Tensor | np.ndarray, eps: float = 1e-7) -> torch.Tensor:
+def batch_probiou(obb1, obb2, eps: float = 1e-7) -> torch.Tensor:
     """
     Calculate the probabilistic IoU between oriented bounding boxes.
 
