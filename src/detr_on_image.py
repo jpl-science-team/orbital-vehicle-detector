@@ -233,7 +233,7 @@ if __name__ == "__main__":
     MY_MODEL = "runs/20260715_rtdetr_obb_512/best_dota_mAP_epoch_27.pth"  
     
     # The path to the image you want to test
-    MY_IMAGE = "data/Angel/images/Isub_u181_v6141_512x512.tif"  
+    MY_IMAGE = "data/Angel/images/Isub_u181_v6141_1536x1536.tif"  
     
     # What you want the final saved image to be called
     MY_OUTPUT_IMAGE = "predictions_drawn.jpg" 

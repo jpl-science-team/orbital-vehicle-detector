@@ -1,0 +1,23 @@
+\begin{table}
+\caption{Metrics for YOLO11n_15GSD.}
+\label{tab:rq1_results}
+\begin{tabular}{llcrrrrrrrrrr}
+\toprule
+Dataset & Variant & GSD_cm & DegradationType & TP & FP & FN & Precision & Recall & F1_Score & mAP50 & Mean_IoU & Mean_Point_Dist_px \\
+\midrule
+COWC & 15cm_base & 15 & Base & 7602 & 1680 & 3245 & 0.819005 & 0.700839 & 0.755328 & 0.769784 & - & 3.737100 \\
+COWC & 30cm_naive & 30 & Naive & 3938 & 6371 & 6909 & 0.381996 & 0.363050 & 0.372282 & 0.183177 & - & 6.184400 \\
+COWC & 30cm_scalenorm & 30 & Scale-Normalized & 8130 & 1397 & 2717 & 0.853364 & 0.749516 & 0.798076 & 0.837756 & - & 3.774100 \\
+COWC & 60cm_naive & 60 & Naive & 1553 & 3043 & 9294 & 0.337903 & 0.143173 & 0.201127 & 0.052589 & - & 11.033000 \\
+COWC & 60cm_scalenorm & 60 & Scale-Normalized & 7094 & 2112 & 3753 & 0.770584 & 0.654006 & 0.707525 & 0.725593 & - & 4.140100 \\
+Angel & 50cm_base & 50 & Base & 1 & 0 & 33 & 1.000000 & 0.029412 & 0.057143 & 0.029412 & 0.555400 & - \\
+Angel & 30cm_upscale & 30 & Upscale & 16 & 12 & 18 & 0.571429 & 0.470588 & 0.516129 & 0.420929 & 0.628300 & - \\
+Angel & 15cm_upscale & 15 & Upscale & 0 & 6 & 34 & 0.000000 & 0.000000 & 0.000000 & 0.000000 & - & - \\
+VEDAI & 15cm_base & 15 & Base & 3414 & 451 & 652 & 0.883312 & 0.839646 & 0.860925 & 0.857712 & 0.696300 & - \\
+VEDAI & 30cm_naive & 30 & Naive & 716 & 4336 & 3350 & 0.141726 & 0.176094 & 0.157052 & 0.051394 & 0.594100 & - \\
+VEDAI & 30cm_scalenorm & 30 & Scale-Normalized & 3361 & 497 & 705 & 0.871177 & 0.826611 & 0.848309 & 0.846660 & 0.694300 & - \\
+VEDAI & 60cm_naive & 60 & Naive & 0 & 3668 & 4066 & 0.000000 & 0.000000 & 0.000000 & 0.000000 & - & - \\
+VEDAI & 60cm_scalenorm & 60 & Scale-Normalized & 2670 & 650 & 1396 & 0.804217 & 0.656665 & 0.722989 & 0.718681 & 0.672900 & - \\
+\bottomrule
+\end{tabular}
+\end{table}
