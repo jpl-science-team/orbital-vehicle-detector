@@ -23,7 +23,8 @@ It handles two main AI training pipelines:
 If the cluster does not already have Miniforge or Conda installed, run this single command to download and install it in your personal home folder:
 
 ```bash
-curl -L -O [https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh](https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh) && bash Miniforge3-Linux-x86_64.sh -b -p ~/miniforge3 && ~/miniforge3/bin/conda init bash && source ~/.bashrc
+curl -L -O [https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh](https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh) 
+bash Miniforge3-Linux-x86_64.sh -b -p ~/miniforge3 && ~/miniforge3/bin/conda init bash && source ~/.bashrc
 ```
 
 * **What this does:** Downloads the Miniforge installer, installs it silently to `~/miniforge3`, links it to your command line interface, and reloads your terminal session so `conda` commands work immediately.
@@ -56,6 +57,10 @@ From Your local terminal
 scp -C /path/to/local/cowc_512.zip user@analysis:~/orbital-vehicle-detector/data/
 ```
 
+### Step 3: Unzip the Dataset (On Cluster)
+```bash
+cd ~/orbital-vehicle-detector/data && unzip cowc_512.zip
+```
 
 ---
 
@@ -69,7 +74,7 @@ Return to your **Cluster Terminal**. Because DETR and YOLO require different sof
 source ~/miniforge3/bin/activate
 conda create -n detr_env python=3.9 -y 
 conda activate detr_env
-pip install torch torchvision torchaudio --index-url [https://download.pytorch.org/whl/cu118](https://download.pytorch.org/whl/cu118) 
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 
 pip install -U openmim 
 mim install mmengine "mmcv>=2.0.0rc4,<2.2.0" "mmdet>=3.0.0,<3.3.0" "mmrotate>=1.0.0rc1"
 pip install -r requirements-detr.txt
@@ -85,10 +90,20 @@ conda activate yolo_env
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 pip install -r requirements-yolo.txt
 ```
-
-* **What this does:** Creates the virtual environments, installs PyTorch (for GPU mathematical calculations), and installs all required computer vision packages.
+### Step 3: Unzip the Dataset (On Cluster)
+```bash
+cd ~/orbital-vehicle-detector/data && unzip cowc_512.zip
+```
 
 ---
+### Step 3.1: Updated the dataset.yaml
+The dataset yaml must contain the absoulte path to you dataset and splits
+```bash
+cd ~/orbital-vehicle-detector/data/cowc_512
+pwd
+```
+
+
 
 ## 4. Run Model Training (via `tmux`)
 
@@ -118,7 +133,9 @@ source ~/miniforge3/etc/profile.d/conda.sh && cd ~/orbital-vehicle-detector && c
 #### Option B: Train YOLO
 
 ```bash
-source ~/miniforge3/etc/profile.d/conda.sh && conda activate yolo_env && NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 512 --batch_size 16 --epochs 150 --data data/cowc_512/dataset.yaml --gpus 2,3
+source ~/miniforge3/etc/profile.d/conda.sh
+conda activate yolo_env 
+NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 512 --batch_size 16 --epochs 150 --data data/cowc_512/dataset.yaml --gpus 2,3
 ```
 
 ---
