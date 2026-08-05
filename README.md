@@ -1,75 +1,131 @@
-orbital-vehicle-detector
-This repository serves as the central hub for training, hyperparameter optimization, and evaluation of computer vision models optimized for detecting vehicles in satellite and high-altitude aerial imagery.
+# `orbital-vehicle-detector`
 
-It supports oriented object detection (OBB) pipelines using O2-RT-DETR / MMRotate as well as standard YOLO workflows.
+This repository is a complete workflow hub for training AI models to detect vehicles in satellite and aerial imagery. 
 
-🛠️ Environment Setup
-Because OpenMMLab/DETR frameworks and YOLO have different dependency trees and underlying C++ compilation needs, we maintain two isolated Conda environments.
+It handles two main AI training pipelines:
+1. **O2-RT-DETR (OpenMMLab):** 
+2. **YOLO (Ultralytics):** 
 
-orbital-vehicle-detector/
-├── requirements-detr.txt      # DETR / MMRotate / OpenMMLab stack
-├── requirements-yolo.txt      # Ultralytics / YOLO stack
-Environment 1: DETR / O2-RT-DETR (requirements-detr.txt)
-This environment powers the oriented object detection pipeline (RT-DETR, MMRotate, MMDetection).
+---
 
-1. Create and Activate the Conda Environment
-Bash
-conda create -n detr_env python=3.9 -y
+## 📋 Table of Contents
+- [0. Install Miniforge on Cluster (One-Time Setup)](#0-install-miniforge-on-cluster-one-time-setup)
+- [1. Clone Repository & Setup Directories](#1-clone-repository--setup-directories)
+- [2. Transfer Files from Local PC to Cluster](#2-transfer-files-from-local-pc-to-cluster)
+- [3. Install Conda AI Environments](#3-install-conda-ai-environments)
+- [4. Run Model Training (via tmux)](#4-run-model-training-via-tmux)
+- [5. Run Model Inference (Testing New Images)](#5-run-model-inference-testing-new-images)
+
+---
+
+## 0. Install Miniforge on Cluster (One-Time Setup)
+
+If the cluster does not already have Miniforge or Conda installed, run this single command to download and install it in your personal home folder:
+
+```bash
+curl -L -O [https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh](https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh) && bash Miniforge3-Linux-x86_64.sh -b -p ~/miniforge3 && ~/miniforge3/bin/conda init bash && source ~/.bashrc
+```
+
+* **What this does:** Downloads the Miniforge installer, installs it silently to `~/miniforge3`, links it to your command line interface, and reloads your terminal session so `conda` commands work immediately.
+
+---
+
+## 1. Clone Repository & Setup Directories
+
+Log into your **Analysis Cluster** via your terminal, clone this codebase, and create the required data and checkpoint folders in a single step:
+
+```bash
+git clone https://github.jpl.nasa.gov/science-team-algorithms/orbital-vehicle-detector.git
+
+cd orbital-vehicle-detector
+
+mkdir -p data
+```
+
+---
+
+## 2. Transfer Files from Local PC to Cluster
+
+Download the COWC_512.zip from the Google Drive data folder 
+https://drive.google.com/drive/folders/1FTX76Ybf0PLiqdwyKsCvyi2WsF-ccoxY
+
+### Transfer Raw Datasets
+From Your local terminal
+
+```bash
+scp -C /path/to/local/cowc_512.zip user@analysis:~/orbital-vehicle-detector/data/
+```
+
+
+---
+
+## 3. Install Conda AI Environments
+
+Return to your **Cluster Terminal**. Because DETR and YOLO require different software dependencies, install these two separate environments.
+
+### Environment 1: DETR / O2-RT-DETR (`detr_env`)
+
+```bash
+source ~/miniforge3/bin/activate
+conda create -n detr_env python=3.9 -y 
 conda activate detr_env
-2. Install PyTorch & Core Dependencies
-Bash
+pip install torch torchvision torchaudio --index-url [https://download.pytorch.org/whl/cu118](https://download.pytorch.org/whl/cu118) 
+pip install -U openmim 
+mim install mmengine "mmcv>=2.0.0rc4,<2.2.0" "mmdet>=3.0.0,<3.3.0" "mmrotate>=1.0.0rc1"
 pip install -r requirements-detr.txt
-3. Build MMCV (Mac Apple Silicon / macOS Fix)
-Building mmcv on macOS requires forcing the C++17 compiler standard and bypassing broken MPS Metal checks during extension building.
+```
 
-Bash
-# Clone and build MMCV locally
-git clone https://github.com/open-mmlab/mmcv.git /tmp/mmcv-src
-cd /tmp/mmcv-src
-git checkout v2.0.1
+---
 
-# Bypass MPS availability check during compilation
-sed -i '' 's/torch.backends.mps.is_available()/False/g' setup.py
-# Force C++17 compilation flag
-sed -i '' 's/-std=c++14/-std=c++17/g' setup.py
+### Environment 2: YOLO (`yolo_env`)
 
-# Export flags and compile
-export CFLAGS="-Wno-invalid-specialization"
-export CXXFLAGS="-Wno-invalid-specialization"
-export MMCV_WITH_OPS=1
-
-pip install .
-cd -
-rm -rf /tmp/mmcv-src
-4. Setup Custom Repositories
-Ensure submodules or custom model directories are present:
-
-Bash
-# If submodules are used
-git submodule update --init --recursive
-Environment 2: YOLO Pipeline (requirements-yolo.txt)
-This environment handles standard bounding box training and rapid prototyping via Ultralytics.
-
-1. Create and Activate the Conda Environment
-Bash
+```bash
 conda create -n yolo_env python=3.10 -y
-conda activate yolo_env
-2. Install Dependencies
-Bash
+conda activate yolo_env 
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 pip install -r requirements-yolo.txt
-🚀 Running Inference
-DETR / O2-RT-DETR
-To run inference with oriented bounding boxes (OBB) on a satellite tile:
+```
 
-Bash
-conda activate detr_env
-python src/detr_on_image.py
-Note: The inference script automatically handles PyTorch 2.6+ checkpoint loading rules, Python 3.9 type-hint patching, and MMDetection registry collision bypasses.
+* **What this does:** Creates the virtual environments, installs PyTorch (for GPU mathematical calculations), and installs all required computer vision packages.
 
-YOLO
-To run YOLO inference or evaluation:
+---
 
-Bash
-conda activate yolo_env
-python src/yolo_on_image.py  # or yolo predict model=runs/yolo_best.pt source=data/sample.tif
+## 4. Run Model Training (via `tmux`)
 
+Training an AI model can take hours or days. We execute all training inside a `tmux` session so the process won't crash if your laptop turns off or disconnects.
+
+### Step 4.1: Start a `tmux` Session
+
+```bash
+tmux new -s training_session
+```
+
+* **What this does:** Opens a background-safe terminal window named `training_session`.
+* **To re-open this session later if disconnected:** Type `tmux attach -t training_session`.
+
+---
+
+### Step 4.2: Run Training Commands (Inside `tmux`)
+
+Choose **one** of the following commands based on which model you want to train:
+
+#### Option A: Train O2-RT-DETR (Oriented Bounding Boxes across 4 GPUs)
+
+```bash
+source ~/miniforge3/etc/profile.d/conda.sh && cd ~/orbital-vehicle-detector && conda activate detr_env && NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 bash O2-RT-DETR/tools/dist_train.sh O2-RT-DETR/projects/rotated_rtdetr/configs/cowc_rtdetr_256.py 4
+```
+
+#### Option B: Train YOLO
+
+```bash
+source ~/miniforge3/etc/profile.d/conda.sh && conda activate yolo_env && NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 512 --batch_size 16 --epochs 150 --data data/cowc_512/dataset.yaml --gpus 2,3
+```
+
+---
+
+### Step 4.3: Detach and Leave Training Running
+
+Press `Ctrl + B`, release both keys, and then press `D`.
+
+
+---
