@@ -23,7 +23,7 @@ It handles two main AI training pipelines:
 If the cluster does not already have Miniforge or Conda installed, run this single command to download and install it in your personal home folder:
 
 ```bash
-curl -L -O [https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh](https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh) 
+curl -L -O https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh(https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh) 
 bash Miniforge3-Linux-x86_64.sh -b -p ~/miniforge3 && ~/miniforge3/bin/conda init bash && source ~/.bashrc
 ```
 
@@ -102,16 +102,21 @@ The dataset yaml must contain the absoulte path to you dataset and splits
 cd ~/orbital-vehicle-detector/data/cowc_512
 pwd
 ```
-
-
+copy the path and replace the path to the data in the dataset.yaml
+```bash
+ nano data/cowc_512/dataset.yaml
+ ```
+ crtl + O to write out 
+ crtl + X to exit 
 
 ## 4. Run Model Training (via `tmux`)
 
 Training an AI model can take hours or days. We execute all training inside a `tmux` session so the process won't crash if your laptop turns off or disconnects.
 
-### Step 4.1: Start a `tmux` Session
+### Step 4.1: Start a `tmux` Session at repo root
 
 ```bash
+cd ~/orbital-vehicle-detector
 tmux new -s training_session
 ```
 
@@ -127,13 +132,16 @@ Choose **one** of the following commands based on which model you want to train:
 #### Option A: Train O2-RT-DETR (Oriented Bounding Boxes across 4 GPUs)
 
 ```bash
-source ~/miniforge3/etc/profile.d/conda.sh && cd ~/orbital-vehicle-detector && conda activate detr_env && NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 bash O2-RT-DETR/tools/dist_train.sh O2-RT-DETR/projects/rotated_rtdetr/configs/cowc_rtdetr_256.py 4
+source ~/miniforge3/bin/activate
+cd ~/orbital-vehicle-detector 
+conda activate detr_env 
+NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 bash O2-RT-DETR/tools/dist_train.sh O2-RT-DETR/projects/rotated_rtdetr/configs/cowc_rtdetr_256.py 4
 ```
 
 #### Option B: Train YOLO
 
 ```bash
-source ~/miniforge3/etc/profile.d/conda.sh
+source ~/miniforge3/bin/activate
 conda activate yolo_env 
 NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 512 --batch_size 16 --epochs 150 --data data/cowc_512/dataset.yaml --gpus 2,3
 ```
@@ -144,5 +152,19 @@ NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 512 --batch_
 
 Press `Ctrl + B`, release both keys, and then press `D`.
 
+### Step 5: Run Testing Inference and Eval
+Download the test_data.zip from the Google Drive data folder. Place the zip and the repo root. 
+https://drive.google.com/drive/folders/1FTX76Ybf0PLiqdwyKsCvyi2WsF-ccoxY
 
+```bash
+unzip test_data.zip
+```
+Running eval on yolo model. 
+```bash
+mkdir -p models/weights/test_weights
+```
+Move the Yolo model into the test_weights directory. Rename the model to YOLO11n_15GSD.pt
+```bash
+python src/yolo_eval.py
+```
 ---
