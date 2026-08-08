@@ -1,10 +1,22 @@
-# `orbital-vehicle-detector`
+# Copyright
+
+Copyright 2026, by the California Institute of Technology. ALL RIGHTS RESERVED. United States Government Sponsorship acknowledged. Any commercial use must be negotiated with the Office of Technology Transfer at the California Institute of Technology.
+ 
+This software may be subject to U.S. export control laws. By accepting this software, the user agrees to comply with all applicable U.S. export laws and regulations. User has the responsibility to obtain export licenses, or other export authority as may be required before exporting such information to foreign countries or providing access to foreign persons.
+
+# About
 
 This repository is a complete workflow hub for training AI models to detect vehicles in satellite and aerial imagery. 
 
 It handles two main AI training pipelines:
 1. **O2-RT-DETR (OpenMMLab):** 
 2. **YOLO (Ultralytics):** 
+
+These instructions are for running on the MLIA machines.
+
+# Status
+
+*This is a work in progress. DETR is still in progress, but YOLO is set up and runs*
 
 ---
 
