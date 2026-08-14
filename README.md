@@ -48,7 +48,9 @@ bash Miniforge3-Linux-x86_64.sh -b -p ~/miniforge3 && ~/miniforge3/bin/conda ini
 Log into your **Analysis Cluster** via your terminal, clone this codebase, and create the required data and checkpoint folders in a single step:
 
 ```bash
-git clone https://github.jpl.nasa.gov/science-team-algorithms/orbital-vehicle-detector.git
+git lfs install
+
+git clone git@github.com:Emmy-D/orbital-vehicle-detector.git
 
 cd orbital-vehicle-detector
 
