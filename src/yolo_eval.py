@@ -61,7 +61,9 @@ def main():
                     if raw_img is None: continue
                     
                     h_img, w_img = raw_img.shape[:2]
-                    eval_imgsz = args.imgsz if args.imgsz else int(np.ceil(max(h_img, w_img) / 32.0) * 32)
+                    # Apply the same upscale the model saw in training (e.g. 512 tiles trained at 640 -> x1.25)
+                    train_scale = args.train_imgsz / args.train_tile_size
+                    eval_imgsz = args.imgsz if args.imgsz else int(np.ceil(max(h_img, w_img) * train_scale / 32.0) * 32)
                     
                     results = model.predict(img_p, conf=args.conf, imgsz=eval_imgsz, verbose=False)[0]
                     

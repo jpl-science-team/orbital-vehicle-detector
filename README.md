@@ -152,7 +152,7 @@ NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 bash O2-RT-DETR/tools/dist_train.sh O2-RT-D
 ```bash
 source ~/miniforge3/bin/activate
 conda activate yolo_env 
-NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 512 --batch_size 16 --epochs 150 --data data/cowc_512/dataset.yaml --gpus 2,3
+NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 640 --batch_size 16 --epochs 150 --data data/cowc_512/dataset.yaml --gpus 2,3
 ```
 
 ---
@@ -172,8 +172,10 @@ Running eval on yolo model.
 ```bash
 mkdir -p models/weights/test_weights
 ```
-Move the Yolo model into the test_weights directory. Rename the model to YOLO11n_15GSD.pt
+Move the YOLO model (`runs/detect/<run_name>/weights/best.pt`) into the test_weights directory and give it a name that includes the training size, e.g. `YOLO11n_15GSD_640.pt`. Results are written to `Eval_Results_YOLO_<model_name>/`, so reusing a name overwrites earlier results.
+
+Pass `--train-imgsz` with the `--img_size` the model was trained at, so test images are scaled the same way as in training:
 ```bash
-python src/yolo_eval.py
+python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_640.pt --train-imgsz 640
 ```
 ---

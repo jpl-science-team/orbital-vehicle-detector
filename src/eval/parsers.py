@@ -20,7 +20,12 @@ def parse_args():
     parser.add_argument("--iou-thr", type=float, default=0.50)
     parser.add_argument("--dist-thr", type=float, default=25.0,
                         help="COWC point-match distance in pixels at 15cm GSD (scaled per variant to keep the ground distance fixed)")
-    parser.add_argument("--imgsz", type=int, default=None)
+    parser.add_argument("--imgsz", type=int, default=None,
+                        help="Fixed inference size for every image (overrides --train-imgsz scaling)")
+    parser.add_argument("--train-imgsz", type=int, default=512,
+                        help="imgsz the model was trained at; each image is enlarged by train-imgsz/train-tile-size at inference")
+    parser.add_argument("--train-tile-size", type=int, default=512,
+                        help="Size of the training tiles (cowc_512 = 512)")
     return parser.parse_args()
 
 def parse_gsd_and_deg_type(variant_name):

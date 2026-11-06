@@ -17,7 +17,7 @@ There's no test suite, linter or build step. All scripts use paths relative to t
 
 ```bash
 # YOLO training (yolo_env)
-NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 512 --batch_size 16 --epochs 150 --data data/cowc_512/dataset.yaml --gpus 2,3
+NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 640 --batch_size 16 --epochs 150 --data data/cowc_512/dataset.yaml --gpus 2,3
 
 # O2-RT-DETR training on 4 GPUs (detr_env)
 NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 bash O2-RT-DETR/tools/dist_train.sh O2-RT-DETR/projects/rotated_rtdetr/configs/cowc_rtdetr_512.py 4
@@ -26,7 +26,7 @@ NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 bash O2-RT-DETR/tools/dist_train.sh O2-RT-D
 python src/preprocess_rq1_datasets.py
 
 # RQ1 evaluation (default weights: models/weights/test_weights/YOLO11n_15GSD.pt)
-python src/yolo_eval.py --models <a.pt> [<b.pt> ...]
+python src/yolo_eval.py --models <a.pt> [<b.pt> ...] --train-imgsz 640   # must match train.py --img_size
 python src/detr_eval.py --config <cfg.py> --models <ckpt.pth>
 
 # YOLO vs RT-DETR comparison plots -> Comparison_Plots/
