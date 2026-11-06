@@ -50,8 +50,7 @@ Log into your **Analysis Cluster** via your terminal, clone this codebase, and c
 ```bash
 git lfs install
 
-git clone git@github.com:Emmy-D/orbital-vehicle-detector.git
-
+git clone https://github.com/jpl-science-team/orbital-vehicle-detector
 cd orbital-vehicle-detector
 
 mkdir -p data
