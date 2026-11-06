@@ -35,7 +35,7 @@ These instructions are for running on the MLIA machines.
 If the cluster does not already have Miniforge or Conda installed, run this single command to download and install it in your personal home folder:
 
 ```bash
-curl -L -O https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh(https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh) 
+curl -L -O https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
 bash Miniforge3-Linux-x86_64.sh -b -p ~/miniforge3 && ~/miniforge3/bin/conda init bash && source ~/.bashrc
 ```
 
@@ -70,7 +70,7 @@ From Your local terminal
 scp -C /path/to/local/cowc_512.zip user@analysis:~/orbital-vehicle-detector/data/
 ```
 
-### Step 3: Unzip the Dataset (On Cluster)
+### Unzip the Dataset (On Cluster)
 ```bash
 cd ~/orbital-vehicle-detector/data && unzip cowc_512.zip
 ```
@@ -103,24 +103,20 @@ conda activate yolo_env
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 pip install -r requirements-yolo.txt
 ```
-### Step 3: Unzip the Dataset (On Cluster)
-```bash
-cd ~/orbital-vehicle-detector/data && unzip cowc_512.zip
-```
 
 ---
-### Step 3.1: Updated the dataset.yaml
-The dataset yaml must contain the absoulte path to you dataset and splits
+
+### Step 3.1: Update the dataset.yaml
+The dataset.yaml must contain the absolute path to your dataset and splits.
 ```bash
 cd ~/orbital-vehicle-detector/data/cowc_512
 pwd
 ```
-copy the path and replace the path to the data in the dataset.yaml
+Copy the path and replace the data path in the dataset.yaml:
 ```bash
- nano data/cowc_512/dataset.yaml
- ```
- crtl + O to write out 
- crtl + X to exit 
+nano dataset.yaml
+```
+Press `Ctrl + O` to write out, then `Ctrl + X` to exit.
 
 ## 4. Run Model Training (via `tmux`)
 
@@ -148,7 +144,7 @@ Choose **one** of the following commands based on which model you want to train:
 source ~/miniforge3/bin/activate
 cd ~/orbital-vehicle-detector 
 conda activate detr_env 
-NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 bash O2-RT-DETR/tools/dist_train.sh O2-RT-DETR/projects/rotated_rtdetr/configs/cowc_rtdetr_256.py 4
+NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 bash O2-RT-DETR/tools/dist_train.sh O2-RT-DETR/projects/rotated_rtdetr/configs/cowc_rtdetr_512.py 4
 ```
 
 #### Option B: Train YOLO

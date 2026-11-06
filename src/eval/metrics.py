@@ -1,7 +1,6 @@
 # src/eval/metrics.py
 import numpy as np
 from shapely.geometry import MultiPoint, Point
-from sklearn.metrics import auc
 
 def compute_polygon_iou(poly1_coords, poly2_coords):
     try:
@@ -68,6 +67,14 @@ def match_polygons(pred_polys, pred_scores, gt_boxes, iou_thr=0.5):
     fns = [{"gt_box": g_box} for g_idx, g_box in enumerate(gt_boxes) if g_idx not in matched_gt]
     return tps, fps, fns, match_ious
 
+def compute_ap(recalls, precisions):
+    """COCO-style 101-point interpolated AP over the precision envelope (matches Ultralytics' compute_ap)."""
+    mrec = np.concatenate(([0.0], recalls, [recalls[-1] if len(recalls) else 1.0], [1.0]))
+    mpre = np.concatenate(([1.0], precisions, [0.0], [0.0]))
+    mpre = np.flip(np.maximum.accumulate(np.flip(mpre)))  # precision envelope
+    x = np.linspace(0, 1, 101)
+    return float(np.trapz(np.interp(x, mrec, mpre), x))
+
 def get_peak_metrics_and_roc(var_preds, total_gts):
     """Sweeps for max F1 and computes mAP50 using full low-conf predictions."""
     best_f1, best_conf, best_p, best_r = 0.0, 0.01, 0.0, 0.0
@@ -82,13 +89,13 @@ def get_peak_metrics_and_roc(var_preds, total_gts):
             best_f1, best_conf, best_p, best_r = th_f1, th, p, r
 
     var_preds_sorted = sorted(var_preds, key=lambda x: x['score'], reverse=True)
-    precisions, recalls, run_tps, run_fps = [1.0], [0.0], 0, 0
+    precisions, recalls, run_tps, run_fps = [], [], 0, 0
     for p_data in var_preds_sorted:
         if p_data['is_tp']: run_tps += 1
         else: run_fps += 1
         precisions.append(run_tps / (run_tps + run_fps))
         recalls.append(run_tps / total_gts if total_gts > 0 else 0.0)
-    map50 = auc(recalls, precisions) if len(recalls) > 1 else 0.0
+    map50 = compute_ap(recalls, precisions) if total_gts > 0 else 0.0
 
     return {
         "best_conf": best_conf,

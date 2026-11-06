@@ -18,7 +18,8 @@ def parse_args():
     parser.add_argument("--test-dir", type=str, default="test_data")
     parser.add_argument("--conf", type=float, default=0.01, help="Low threshold strictly for ROC generation")
     parser.add_argument("--iou-thr", type=float, default=0.50)
-    parser.add_argument("--dist-thr", type=float, default=25.0)
+    parser.add_argument("--dist-thr", type=float, default=25.0,
+                        help="COWC point-match distance in pixels at 15cm GSD (scaled per variant to keep the ground distance fixed)")
     parser.add_argument("--imgsz", type=int, default=None)
     return parser.parse_args()
 
@@ -36,6 +37,11 @@ def parse_gsd_and_deg_type(variant_name):
     else: deg_type = "Base"
 
     return gsd, deg_type
+
+def get_pixel_gsd(variant_name):
+    """GSD (cm/px) of the saved image pixels. Scale-normalized variants are resampled back to the 15cm grid."""
+    gsd, deg_type = parse_gsd_and_deg_type(variant_name)
+    return 15 if deg_type == "Scale-Normalized" else gsd
 
 def parse_label_file(label_path, is_cowc=False, is_vedai=False):
     gt_items = []

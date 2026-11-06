@@ -20,7 +20,7 @@ There's no test suite, linter or build step. All scripts use paths relative to t
 NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 512 --batch_size 16 --epochs 150 --data data/cowc_512/dataset.yaml --gpus 2,3
 
 # O2-RT-DETR training on 4 GPUs (detr_env)
-NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 bash O2-RT-DETR/tools/dist_train.sh O2-RT-DETR/projects/rotated_rtdetr/configs/cowc_rtdetr_256.py 4
+NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 bash O2-RT-DETR/tools/dist_train.sh O2-RT-DETR/projects/rotated_rtdetr/configs/cowc_rtdetr_512.py 4
 
 # Build the degraded-GSD test sandbox: data/ (read-only) -> test_data/
 python src/preprocess_rq1_datasets.py
