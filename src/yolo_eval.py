@@ -8,8 +8,9 @@ from pathlib import Path
 from ultralytics import YOLO
 
 from eval.config import DATASET_VARIANTS
-from eval.parsers import parse_args, parse_label_file, parse_gsd_and_deg_type, get_pixel_gsd
+from eval.parsers import parse_args, parse_label_file, parse_gsd_and_deg_type, get_pixel_gsd, get_content_gsd
 from eval.metrics import filter_ignored_predictions, match_cowc_points, match_polygons, get_peak_metrics_and_roc, get_poly_area
+from eval.calibration import ValThresholdCalibrator, compute_eval_imgsz
 from eval.visualization import draw_annotations, generate_powerpoint_plots, generate_extended_plots
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -34,6 +35,7 @@ def main():
         print(f"=======================================================")
         
         model = YOLO(model_path_str)
+        calibrator = ValThresholdCalibrator(model, args) if args.threshold_source == "val" else None
         summary_records, all_roc_data = [], []
         vedai_iou_data, vedai_size_data = [], []
 
@@ -62,9 +64,8 @@ def main():
                     
                     h_img, w_img = raw_img.shape[:2]
                     # Apply the same upscale the model saw in training (e.g. 512 tiles trained at 640 -> x1.25)
-                    train_scale = args.train_imgsz / args.train_tile_size
-                    eval_imgsz = args.imgsz if args.imgsz else int(np.ceil(max(h_img, w_img) * train_scale / 32.0) * 32)
-                    
+                    eval_imgsz = compute_eval_imgsz(h_img, w_img, args)
+
                     results = model.predict(img_p, conf=args.conf, imgsz=eval_imgsz, verbose=False)[0]
                     
                     pred_polys, pred_scores = [], []
@@ -100,13 +101,16 @@ def main():
                 var_preds = [p for p in all_roc_data if p["dataset"] == ds and p["variant"] == deg]
                 
                 if len(var_preds) > 0:
-                    metrics = get_peak_metrics_and_roc(var_preds, total_gts)
+                    # Threshold picked on validation data degraded to this variant's resolution (not on the test data)
+                    conf_thr = calibrator.threshold(get_content_gsd(ds, deg), get_pixel_gsd(deg)) if calibrator else None
+                    metrics = get_peak_metrics_and_roc(var_preds, total_gts, conf_thr)
                     gsd_val, deg_type = parse_gsd_and_deg_type(deg)
-                    
+
                     mean_iou = float(np.mean(all_ious)) if len(all_ious) > 0 else np.nan
                     mean_dist = float(np.mean(all_distances)) if len(all_distances) > 0 else np.nan
-                    
-                    print(f"  > {deg:<16} | Peak F1: {metrics['F1_Score']:.4f} (@conf {metrics['best_conf']:.2f}) | mAP50: {metrics['mAP50']:.4f}")
+
+                    print(f"  > {deg:<16} | F1: {metrics['F1_Score']:.4f} (@conf {metrics['best_conf']:.2f}, {args.threshold_source}) "
+                          f"| Oracle F1: {metrics['Oracle_F1']:.4f} (@conf {metrics['Oracle_conf']:.2f}) | mAP50: {metrics['mAP50']:.4f}")
 
                     summary_records.append({
                         "Dataset": ds, "Variant": deg, "GSD_cm": gsd_val, "DegradationType": deg_type,

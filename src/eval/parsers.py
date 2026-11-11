@@ -26,6 +26,11 @@ def parse_args():
                         help="imgsz the model was trained at; each image is enlarged by train-imgsz/train-tile-size at inference")
     parser.add_argument("--train-tile-size", type=int, default=512,
                         help="Size of the training tiles (cowc_512 = 512)")
+    parser.add_argument("--threshold-source", choices=["val", "test"], default="val",
+                        help="Pick each variant's F1 confidence threshold on matching degraded copies of the validation set (val), "
+                             "or on the test data itself (test; optimistic, the pre-2026-11 behavior)")
+    parser.add_argument("--val-data", type=str, default="data/cowc_512/dataset.yaml",
+                        help="Ultralytics dataset.yaml whose 'val' split (15cm GSD) is used to calibrate thresholds")
     return parser.parse_args()
 
 def parse_gsd_and_deg_type(variant_name):
@@ -47,6 +52,11 @@ def get_pixel_gsd(variant_name):
     """GSD (cm/px) of the saved image pixels. Scale-normalized variants are resampled back to the 15cm grid."""
     gsd, deg_type = parse_gsd_and_deg_type(variant_name)
     return 15 if deg_type == "Scale-Normalized" else gsd
+
+def get_content_gsd(dataset, variant_name):
+    """GSD (cm/px) of the image content, before any resampling back up. Angel is natively 50cm, so its upscale variants keep 50cm content."""
+    if dataset == "Angel": return 50
+    return parse_gsd_and_deg_type(variant_name)[0]
 
 def parse_label_file(label_path, is_cowc=False, is_vedai=False):
     gt_items = []
