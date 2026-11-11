@@ -1,5 +1,6 @@
 import argparse
 import os
+from datetime import datetime
 import torch
 from ultralytics import YOLO
 
@@ -53,8 +54,8 @@ def run_training(args):
         
         # Directory Management
         project="runs/detect",
-        name=f"20260714_yolo11n_res{args.img_size}",
-        exist_ok=True,
+        name=f"{datetime.now():%Y%m%d_%H%M%S}_yolo11n_res{args.img_size}",
+        exist_ok=False,             # Never overwrite a previous run's weights/logs
         
         # --- OBB Training Stabilization & Regularization ---
         optimizer="AdamW",          # Dampens chaotic OBB angular gradient explosions
