@@ -22,6 +22,9 @@ NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 640 --batch_
 # O2-RT-DETR training on 4 GPUs (detr_env)
 NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 bash O2-RT-DETR/tools/dist_train.sh O2-RT-DETR/projects/rotated_rtdetr/configs/cowc_rtdetr_512.py 4
 
+# Train vs val loss / mAP curves for a finished run -> <run_dir>/results_combined.png
+python src/plot_training.py runs/obb/runs/detect/<run_name>
+
 # Build the degraded-GSD test sandbox: data/ (read-only) -> test_data/
 python src/preprocess_rq1_datasets.py
 
@@ -37,7 +40,7 @@ Run training inside `tmux`, because jobs can take hours or days.
 
 ## Architecture
 
-**Data layout (gitignored):** `data/` holds the raw datasets and must be treated as read-only. `data/cowc_512/dataset.yaml` has to contain an absolute path that matches the local machine. The DETR configs read DOTA-format data from `data/cowc_512_degraded_dota/{train,val}/annfiles/`. `test_data/<Dataset>/<variant>/{images,labels}` is the evaluation sandbox. `models/`, `runs/` and `*.pt` are also gitignored.
+**Data layout (gitignored):** `data/` holds the raw datasets and must be treated as read-only. `data/cowc_512/dataset.yaml` has to contain an absolute path that matches the local machine. The DETR configs read DOTA-format data from `data/cowc_512_degraded_dota/{train,val}/annfiles/`. `test_data/<Dataset>/<variant>/{images,labels}` is the evaluation sandbox. `models/`, `runs/` and `*.pt` are also gitignored. YOLO training runs land in `runs/obb/runs/detect/<timestamp>_yolo11n_res<imgsz>/` (Ultralytics prefixes `runs/obb/` to `project="runs/detect"` for OBB models).
 
 **GSD variants:** `src/eval/config.py::DATASET_VARIANTS` is the single source of truth for which variants exist (COWC/VEDAI: `15cm_base`, `30cm_{naive,scalenorm}`, `60cm_{naive,scalenorm}`; Angel: `50cm_base`, `30cm_upscale`, `15cm_upscale`). `preprocess_rq1_datasets.py` generates them, and `eval/parsers.py::parse_gsd_and_deg_type` turns variant names back into a GSD and degradation type. If you add a variant, keep all three in sync.
 

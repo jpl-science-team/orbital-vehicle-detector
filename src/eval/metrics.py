@@ -75,18 +75,32 @@ def compute_ap(recalls, precisions):
     x = np.linspace(0, 1, 101)
     return float(np.trapz(np.interp(x, mrec, mpre), x))
 
-def get_peak_metrics_and_roc(var_preds, total_gts):
-    """Sweeps for max F1 and computes mAP50 using full low-conf predictions."""
-    best_f1, best_conf, best_p, best_r = 0.0, 0.01, 0.0, 0.0
+def counts_at_threshold(var_preds, total_gts, th):
+    """TP/FP/FN, precision, recall and F1 when keeping predictions with score >= th."""
+    tps = sum(1 for p in var_preds if p['score'] >= th and p['is_tp'])
+    fps = sum(1 for p in var_preds if p['score'] >= th and not p['is_tp'])
+    fns = total_gts - tps
+    prec = tps / (tps + fps) if (tps + fps) > 0 else 0.0
+    rec = tps / (tps + fns) if (tps + fns) > 0 else 0.0
+    f1 = 2 * (prec * rec) / (prec + rec) if (prec + rec) > 0 else 0.0
+    return tps, fps, fns, prec, rec, f1
+
+def find_best_f1_threshold(var_preds, total_gts):
+    """Sweeps confidence thresholds and returns (threshold, F1) with the highest F1."""
+    best_conf, best_f1 = 0.01, 0.0
     for th in np.linspace(0.01, 0.90, 50):
-        th_tps = sum(1 for p in var_preds if p['score'] >= th and p['is_tp'])
-        th_fps = sum(1 for p in var_preds if p['score'] >= th and not p['is_tp'])
-        th_fns = total_gts - th_tps
-        p = th_tps / (th_tps + th_fps) if (th_tps + th_fps) > 0 else 0.0
-        r = th_tps / (th_tps + th_fns) if (th_tps + th_fns) > 0 else 0.0
-        th_f1 = 2 * (p * r) / (p + r) if (p + r) > 0 else 0.0
-        if th_f1 > best_f1:
-            best_f1, best_conf, best_p, best_r = th_f1, th, p, r
+        f1 = counts_at_threshold(var_preds, total_gts, th)[5]
+        if f1 > best_f1:
+            best_conf, best_f1 = float(th), f1
+    return best_conf, best_f1
+
+def get_peak_metrics_and_roc(var_preds, total_gts, conf_thr=None):
+    """Computes counts/P/R/F1 at conf_thr (e.g. a validation-calibrated threshold) and mAP50 from the full
+    low-conf predictions. If conf_thr is None, the test-set-optimal threshold is used. Oracle_* always report
+    the best F1 achievable on this data, for comparison."""
+    oracle_conf, oracle_f1 = find_best_f1_threshold(var_preds, total_gts)
+    best_conf = oracle_conf if conf_thr is None else conf_thr
+    tps, fps, fns, best_p, best_r, best_f1 = counts_at_threshold(var_preds, total_gts, best_conf)
 
     var_preds_sorted = sorted(var_preds, key=lambda x: x['score'], reverse=True)
     precisions, recalls, run_tps, run_fps = [], [], 0, 0
@@ -99,8 +113,7 @@ def get_peak_metrics_and_roc(var_preds, total_gts):
 
     return {
         "best_conf": best_conf,
-        "TP": sum(1 for p in var_preds if p['score'] >= best_conf and p['is_tp']),
-        "FP": sum(1 for p in var_preds if p['score'] >= best_conf and not p['is_tp']),
-        "FN": total_gts - sum(1 for p in var_preds if p['score'] >= best_conf and p['is_tp']),
-        "Precision": best_p, "Recall": best_r, "F1_Score": best_f1, "mAP50": map50
+        "TP": tps, "FP": fps, "FN": fns,
+        "Precision": best_p, "Recall": best_r, "F1_Score": best_f1, "mAP50": map50,
+        "Oracle_conf": oracle_conf, "Oracle_F1": oracle_f1
     }

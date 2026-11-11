@@ -151,15 +151,32 @@ NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 bash O2-RT-DETR/tools/dist_train.sh O2-RT-D
 
 ```bash
 source ~/miniforge3/bin/activate
+cd ~/orbital-vehicle-detector
 conda activate yolo_env 
 NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 640 --batch_size 16 --epochs 150 --data data/cowc_512/dataset.yaml --gpus 2,3
 ```
+
+`--img_size` sets the size images are resized to before training. The COWC tiles are 512×512, so:
+* `--img_size 512` trains at the tiles' native resolution (no resizing).
+* `--img_size 640` (Ultralytics' default) enlarges every tile 1.25× before training.
+
+Each run saves to its own timestamped folder, `runs/obb/runs/detect/<date>_<time>_yolo11n_res<img_size>/`, so runs at different sizes don't overwrite each other. Training stops early if validation mAP hasn't improved for 15 epochs.
+
+Before starting, check with `nvidia-smi` that the GPUs in `--gpus` are free. If a previous run was killed, leftover processes can hold the GPUs and stall the new run.
 
 ---
 
 ### Step 4.3: Detach and Leave Training Running
 
 Press `Ctrl + B`, release both keys, and then press `D`.
+
+### Step 4.4: Plot the Training Curves
+
+When training finishes, the run folder contains Ultralytics' own plots (`results.png`, PR/F1 curves, confusion matrix) and `results.csv`. To plot training and validation losses on the same axes, plus validation mAP and precision/recall:
+```bash
+python src/plot_training.py runs/obb/runs/detect/<run_name>
+```
+This saves `results_combined.png` in the run folder. A dotted vertical line marks the best epoch (the one saved as `weights/best.pt`).
 
 ### Step 5: Run Testing Inference and Eval
 Download the test_data.zip from the Google Drive data folder. Place the zip and the repo root. 
@@ -172,10 +189,11 @@ Running eval on yolo model.
 ```bash
 mkdir -p models/weights/test_weights
 ```
-Move the YOLO model (`runs/detect/<run_name>/weights/best.pt`) into the test_weights directory and give it a name that includes the training size, e.g. `YOLO11n_15GSD_640.pt`. Results are written to `Eval_Results_YOLO_<model_name>/`, so reusing a name overwrites earlier results.
+Move the YOLO model (`runs/obb/runs/detect/<run_name>/weights/best.pt`) into the test_weights directory and give it a name that includes the training size, e.g. `YOLO11n_15GSD_640.pt`. Results are written to `Eval_Results_YOLO_<model_name>/`, so reusing a name overwrites earlier results.
 
-Pass `--train-imgsz` with the `--img_size` the model was trained at, so test images are scaled the same way as in training:
+Pass `--train-imgsz` with the `--img_size` the model was trained at, so test images are scaled the same way as in training (it defaults to 512):
 ```bash
 python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_640.pt --train-imgsz 640
+python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_512.pt --train-imgsz 512
 ```
 ---

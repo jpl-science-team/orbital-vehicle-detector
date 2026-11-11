@@ -53,9 +53,10 @@ def generate_powerpoint_plots(df, all_preds, output_dir, model_name):
         plt.savefig(plots_dir / f"roc_curve_{ds}.png", dpi=300); plt.close()
 
     # Data outputs
-    df_clean = df[["Dataset", "Variant", "GSD_cm", "DegradationType", "TP", "FP", "FN", "Precision", "Recall", "F1_Score", "mAP50", "Mean_IoU", "Mean_Point_Dist_px"]]
-    
-    try: tex_output = df_clean.to_latex(index=False, caption=f"Metrics for {model_name}.", label="tab:rq1_results", column_format="llcrrrrrrrrrr")
+    cols = ["Dataset", "Variant", "GSD_cm", "DegradationType", "best_conf", "TP", "FP", "FN", "Precision", "Recall", "F1_Score", "Oracle_F1", "mAP50", "Mean_IoU", "Mean_Point_Dist_px"]
+    df_clean = df[[c for c in cols if c in df.columns]]
+
+    try: tex_output = df_clean.to_latex(index=False, caption=f"Metrics for {model_name}.", label="tab:rq1_results", column_format="llc" + "r" * (len(df_clean.columns) - 3))
     except AttributeError: tex_output = df_clean.style.to_latex(caption=f"Metrics for {model_name}.", label="tab:rq1_results")
         
     with open(output_dir / "rq1_paper_table.tex", "w") as f: f.write(tex_output)
