@@ -31,6 +31,14 @@ def parse_args():
                              "or on the test data itself (test; optimistic, the pre-2026-11 behavior)")
     parser.add_argument("--val-data", type=str, default="data/cowc_512/dataset.yaml",
                         help="Ultralytics dataset.yaml whose 'val' split (15cm GSD) is used to calibrate thresholds")
+    parser.add_argument("--datasets", nargs="+", default=None,
+                        help="Only evaluate these datasets (e.g. VEDAI). Default: all in DATASET_VARIANTS")
+    parser.add_argument("--variants", nargs="+", default=None,
+                        help="Only evaluate these variants (e.g. 15cm_base). Default: all variants of each dataset")
+    parser.add_argument("--image-glob", type=str, default="*.*",
+                        help="Glob for image files inside each variant's images/ folder (e.g. '*_co.*' for VEDAI color only)")
+    parser.add_argument("--tag", type=str, default="",
+                        help="Suffix for the output folder, so subset runs don't overwrite full runs")
     return parser.parse_args()
 
 def parse_gsd_and_deg_type(variant_name):

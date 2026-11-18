@@ -25,7 +25,7 @@ def main():
             continue
             
         model_name = model_path.stem
-        output_dir = Path(f"Eval_Results_YOLO_{model_name}")
+        output_dir = Path(f"Eval_Results_YOLO_{model_name}" + (f"_{args.tag}" if args.tag else ""))
         output_dir.mkdir(exist_ok=True)
         qual_dir = output_dir / "qualitative"
         qual_dir.mkdir(exist_ok=True)
@@ -40,12 +40,14 @@ def main():
         vedai_iou_data, vedai_size_data = [], []
 
         for ds, variants in DATASET_VARIANTS.items():
+            if args.datasets and ds not in args.datasets: continue
+            if args.variants: variants = [v for v in variants if v in args.variants]
             is_cowc = (ds == "COWC")
             is_vedai = (ds == "VEDAI")
             print(f"\n--- DATASET: {ds} ---")
             
             for deg in variants:
-                img_paths = sorted(glob.glob(str(Path(args.test_dir) / ds / deg / "images" / "*.*")))
+                img_paths = sorted(glob.glob(str(Path(args.test_dir) / ds / deg / "images" / args.image_glob)))
                 lbl_dir = Path(args.test_dir) / ds / deg / "labels"
                 total_gts = 0
                 # --dist-thr is defined at 15cm GSD; rescale so the threshold covers the same ground distance
