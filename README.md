@@ -43,6 +43,7 @@ This is a work in progress. DETR is still in progress, but YOLO is set up and ru
 - [4. Run Model Training (via tmux)](#4-run-model-training-via-tmux)
 - [5. Run Testing Inference and Eval](#5-run-testing-inference-and-eval)
 - [6. Look at Predictions on Single Images](#6-look-at-predictions-on-single-images)
+- [7. Train on New Data](#7-train-on-new-data)
 
 ---
 
@@ -293,7 +294,7 @@ python src/compare_models.py --yolo-csv Eval_Results_YOLO_<name>/rq1_summary_met
 
 These scripts are for looking at a model's predictions, not for scoring. Run them from the repo root in `yolo_env`.
 
-**One image:** `inf_on_image.py` runs a YOLO model on one image and saves a copy with the predicted boxes drawn (no labels or scores). Boxes below `--conf` (default 0.4) aren't drawn.
+**One image:** `inf_on_image.py` runs a YOLO model on one image and saves a copy with the predicted boxes drawn, each class in its own color and labeled with its class name (no confidence scores). Add `--no-names` to draw the boxes only. Boxes below `--conf` (default 0.4) aren't drawn.
 ```bash
 python src/inf_on_image.py --model models/weights/test_weights/YOLO11n_15GSD_640.pt --image test_data/COWC/15cm_base/images/Potsdam_ISPRS_top_potsdam_2_13_RGB_patch_512_1280.png --out predictions_drawn.jpg
 ```
@@ -302,3 +303,84 @@ python src/inf_on_image.py --model models/weights/test_weights/YOLO11n_15GSD_640
 ```bash
 python src/viewer.py --model models/weights/test_weights/YOLO11n_15GSD_640.pt --test-dir test_data --train-imgsz 640
 ```
+
+---
+
+## 7. Train on New Data
+
+You can train YOLO on your own oriented-box data with the same `train.py`, by describing your data in a dataset file.
+
+### Step 7.1: Arrange the data
+Put the images and labels in this layout (any folder works; `data/` is a good place):
+```
+data/my_data/
+├── images/
+│   ├── train/   tile_001.png, tile_002.png, ...
+│   ├── val/     tile_101.png, ...
+│   └── test/    tile_201.png, ...
+└── labels/
+    ├── train/   tile_001.txt, tile_002.txt, ...
+    ├── val/     tile_101.txt, ...
+    └── test/    tile_201.txt, ...
+```
+* Each image needs a label file with the same name, ending in `.txt`. An image with no objects gets an empty `.txt` file.
+* Each line of a label file is one object: `<class_id> x1 y1 x2 y2 x3 y3 x4 y4`. The four points are the box corners, in order around the box. Each x is divided by the image width and each y by the image height, so all values are between 0 and 1. For example, `0 0.10 0.20 0.15 0.20 0.15 0.30 0.10 0.30` is a class-0 box near the top left. COWC's labels in `data/cowc_512/labels/` are an example of this format.
+* `class_id` is the class number, from 0. With several classes (e.g. 0 = car, 1 = truck), use the same numbers in every label file and list the names in that order in Step 7.2.
+* Keep three separate sets of images; around 80% train, 10% val and 10% test is common.
+  * `train`: the model learns from these.
+  * `val`: the model is checked on these after every epoch, and the best epoch is saved as `best.pt`. The evaluation (Step 7.5) also uses them to pick each class's confidence threshold.
+  * `test`: used only for the final scores in Step 7.5, never in training.
+* If your labels are in another format, convert them to this one first. `src/convert_coco.py` is an example of a converter.
+
+### Step 7.2: Make a dataset file
+Copy the template and edit the lines marked `EDIT`:
+```bash
+cp configs/template.yaml configs/my_data.yaml
+```
+* `path:` the data folder, `data/my_data`. Relative paths are from the repo root.
+* `train:`, `val:` and `test:` the image folders inside it. Change them only if your folders have other names.
+* `names:` the class names, numbered from 0 in the same order as the class IDs in your labels.
+
+### Step 7.3: Train
+Train as in Step 4.2, with your dataset file:
+```bash
+NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --data configs/my_data.yaml --img_size 512 --gpus 0
+```
+Set `--img_size` to your images' size to train at their native resolution, or larger to enlarge them. If your images aren't square, Ultralytics resizes the longer side to `--img_size`. Then check the training curves as in Step 4.4. To start from a model you already trained instead of the pretrained `yolo11n-obb.pt`, add `--weights <best.pt>`.
+
+### Step 7.4: Machines without internet access
+Training itself doesn't need internet, but setting up the environment and the first run normally download files. Before moving to a machine without internet, collect these on a machine that has it:
+1. **The `yolo_env` environment.** `pip` and `conda` can't install packages offline. One option is `conda-pack`: on a machine with internet, run `conda install -n base -c conda-forge conda-pack`, then `conda pack -n yolo_env -o yolo_env.tar.gz`. Copy the archive over, then unpack and activate it:
+   ```bash
+   mkdir -p ~/envs/yolo_env && tar -xzf yolo_env.tar.gz -C ~/envs/yolo_env
+   source ~/envs/yolo_env/bin/activate
+   conda-unpack
+   ```
+   The new machine needs a similar Linux system and an NVIDIA driver that supports the CUDA version of the packed PyTorch (check with `python -c "import torch; print(torch.version.cuda)"` before packing).
+2. **`yolo11n-obb.pt`**, the pretrained starting weights. `train.py` downloads it to the repo root if it's missing. Copy it into the repo root on the new machine (it's gitignored, so it isn't in the repo).
+3. **`yolo26n.pt`** (optional). At the start of training, Ultralytics uses it for a quick GPU check. Without it, the check is skipped with a warning and training continues. Copy it into the repo root to avoid the warning.
+4. **`~/.config/Ultralytics/Arial.ttf`**, the font Ultralytics uses for its plots, downloaded the first time it draws them. Copy it to the same folder on the new machine.
+
+On the new machine, set this before running, so Ultralytics skips its online checks instead of waiting for them to time out:
+```bash
+export YOLO_OFFLINE=true
+```
+
+### Step 7.5: Evaluate on the test set
+`yolo_eval_dataset.py` scores a model on the `test` images of the same dataset file, at the images' native resolution:
+```bash
+python src/yolo_eval_dataset.py --models runs/obb/runs/detect/<run_name>/weights/best.pt --data configs/my_data.yaml --imgsz 512
+```
+* `--models` is the trained weights (you can list several, if they were all trained at the same size).
+* `--data` is the dataset file from Step 7.2, which needs `val` and `test` splits.
+* `--imgsz` is the `--img_size` from Step 7.3.
+
+How it scores:
+* Each class is scored separately. A prediction counts as correct if it has the same class as a labeled box and overlaps it with IoU >= `--iou-thr` (default 0.5). A box with the right location but the wrong class counts as both a false detection and a missed box.
+* The model gives each prediction a confidence score, and only predictions above a threshold are counted. Each class gets its own threshold: the one with the best F1 on the `val` images, so the test scores aren't tuned on the test data. With `--threshold-source test`, the thresholds are picked on the test images instead, which gives optimistic scores.
+
+It writes `Eval_Results_YOLO_<model>_<dataset file>/`, containing:
+* `summary_metrics.csv` and `SUMMARY.md`: one row per class (labeled boxes, threshold, TP/FP/FN, precision, recall, F1, mAP50, mean IoU), plus an `all` row. For `all`, TP/FP/FN, precision, recall and F1 add up the counts over all classes, and mAP50 is the mean over the classes that have test labels. See Step 5.3 for what the metrics mean. `Oracle_F1` is the best F1 possible on the test images, as an upper bound.
+* `qualitative/`: the two best and two worst test images, with correct predictions in green, false detections in red and missed boxes in blue. Each box is labeled with its class name: above the box for predictions, below it for missed boxes, so a prediction with the wrong class shows both names.
+
+`yolo_eval.py` (Step 5) is the resolution study on COWC, VEDAI and Angel, and doesn't work on new data.

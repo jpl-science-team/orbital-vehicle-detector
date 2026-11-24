@@ -6,13 +6,39 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import roc_curve, auc
 
-def draw_annotations(img, tps, fps, fns, is_cowc=False):
+def draw_class_name(canvas, box, name, color, below=False):
+    """Writes a class name on a filled background, just above the box's top corner (or below its bottom corner).
+    Missed labels go below, so a wrong-class prediction and the label it missed don't overlap."""
+    pts = np.array(box, dtype=np.int32).reshape(-1, 2)
+    (tw, th), base = cv2.getTextSize(name, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
+    if below:
+        x, y = pts[np.argmax(pts[:, 1])]
+        y = y + th + base + 3
+    else:
+        x, y = pts[np.argmin(pts[:, 1])]
+        y = y - 3
+    x = int(np.clip(x, 0, max(0, canvas.shape[1] - tw)))
+    y = int(np.clip(y, th + base, canvas.shape[0] - 1))
+    cv2.rectangle(canvas, (x, y - th - base), (x + tw, y + base // 2), color, -1)
+    cv2.putText(canvas, name, (x, y - base // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
+
+def draw_annotations(img, tps, fps, fns, is_cowc=False, names=None):
+    """Green: correct prediction, red: false detection, blue: missed label (BGR colors).
+    If names ({class_id: name}) is given, items with a "cls" key are labeled with their class name."""
     canvas = img.copy()
-    for fn in fns:
-        if is_cowc: cv2.circle(canvas, (int(fn["gt_pt"][0]), int(fn["gt_pt"][1])), 6, (255, 0, 0), -1)
-        else: cv2.polylines(canvas, [np.array(fn["gt_box"], dtype=np.int32).reshape((-1, 1, 2))], True, (255, 0, 0), 2)
-    for fp in fps: cv2.polylines(canvas, [np.array(fp["pred_box"], dtype=np.int32).reshape((-1, 1, 2))], True, (0, 0, 255), 2)
-    for tp in tps: cv2.polylines(canvas, [np.array(tp["pred_box"], dtype=np.int32).reshape((-1, 1, 2))], True, (0, 255, 0), 2)
+    groups = [(fns, "gt_box", (255, 0, 0)), (fps, "pred_box", (0, 0, 255)), (tps, "pred_box", (0, 255, 0))]
+    for items, key, color in groups:
+        for item in items:
+            if key == "gt_box" and is_cowc:
+                cv2.circle(canvas, (int(item["gt_pt"][0]), int(item["gt_pt"][1])), 6, color, -1)
+                continue
+            cv2.polylines(canvas, [np.array(item[key], dtype=np.int32).reshape((-1, 1, 2))], True, color, 2)
+    # Names go on last so boxes drawn later don't cover them
+    if names:
+        for items, key, color in groups:
+            for item in items:
+                if "cls" in item and key in item:
+                    draw_class_name(canvas, item[key], names.get(item["cls"], str(item["cls"])), color, below=(key == "gt_box"))
     return canvas
 
 def generate_powerpoint_plots(df, all_preds, output_dir, model_name):
