@@ -64,8 +64,6 @@ bash Miniforge3-Linux-x86_64.sh -b -p ~/miniforge3 && ~/miniforge3/bin/conda ini
 Log into your **Analysis Cluster** via your terminal, clone this codebase, and create the data folder:
 
 ```bash
-git lfs install
-
 git clone https://github.com/jpl-science-team/orbital-vehicle-detector
 cd orbital-vehicle-detector
 
