@@ -92,7 +92,7 @@ scp -C /path/to/local/cowc_512.zip user@analysis:~/orbital-vehicle-detector/data
 ```bash
 cd ~/orbital-vehicle-detector/data && unzip cowc_512.zip && cd ..
 ```
-This creates `data/cowc_512/` with `images/`, `labels/` and `dataset.yaml`.
+This creates `data/cowc_512/` with `images/{train,val,test}` and `labels/{train,val,test}`. The repo's `configs/cowc_512.yaml` already points to this folder, so there's nothing to edit.
 
 ---
 
@@ -125,16 +125,6 @@ pip install -r requirements-yolo.txt
 ```
 
 Each time you open a new terminal, activate the environment again with `source ~/miniforge3/bin/activate` and `conda activate yolo_env` (or `detr_env`).
-
----
-
-### Step 3.1: Update the dataset.yaml (Required)
-The `path:` line in `data/cowc_512/dataset.yaml` must be the absolute path to the dataset on your machine. From the repo root, this sets it:
-```bash
-cd ~/orbital-vehicle-detector
-sed -i "s|^path:.*|path: $(pwd)/data/cowc_512|" data/cowc_512/dataset.yaml
-head -1 data/cowc_512/dataset.yaml   # should print path: /home/<you>/orbital-vehicle-detector/data/cowc_512
-```
 
 ---
 
@@ -175,12 +165,12 @@ NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 bash O2-RT-DETR/tools/dist_train.sh O2-RT-D
 source ~/miniforge3/bin/activate
 cd ~/orbital-vehicle-detector
 conda activate yolo_env 
-NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 640 --batch_size 16 --epochs 150 --data data/cowc_512/dataset.yaml --gpus 2,3
+NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 640 --batch_size 16 --epochs 150 --data configs/cowc_512.yaml --gpus 2,3
 ```
 
 * `--img_size`, `--data` and `--gpus` are required.
   * `--img_size` sets the size images are resized to before training. The COWC tiles are 512×512, so `--img_size 512` trains at the tiles' native resolution (no resizing), and `--img_size 640` (Ultralytics' default) enlarges every tile 1.25×. Write down which one you used: the evaluation needs it (Step 5.3).
-  * `--data` is the `dataset.yaml` from Step 3.1.
+  * `--data` is the dataset file `configs/cowc_512.yaml`. It lists the training and validation image folders (relative to the repo root) and the class name, `vehicle`. Training uses the `train` images and checks the model on the `val` images after every epoch; the `test` images aren't used. To train on other data, copy this file and change the folders.
   * `--gpus` is a comma-separated list of free GPU numbers from `nvidia-smi`, e.g. `0` or `2,3`.
 * `--batch_size` and `--epochs` default to 16 and 150.
 * Training starts from Ultralytics' pretrained `yolo11n-obb.pt`, which is downloaded to the repo root the first time. Pass `--weights <file.pt>` to start from another checkpoint instead.
@@ -256,26 +246,26 @@ Results are written to `Eval_Results_YOLO_<model_name>/` (e.g. `Eval_Results_YOL
 Four inputs are required:
 * `--models`: the weights from Step 5.2 (you can list several, if they were all trained at the same size).
 * `--test-dir`: the test data folder from Step 5.1, `test_data`.
-* `--val-data`: the training `dataset.yaml` (`data/cowc_512/dataset.yaml`), whose validation images are used to pick the confidence threshold (see the options below).
+* `--val-data`: the dataset file the model was trained with (`configs/cowc_512.yaml`, the same as `--data` in Step 4.2). Its validation images are used to pick the confidence threshold (see the options below).
 * `--train-imgsz`: the `--img_size` the model was trained at (Step 4.2), so test images are scaled the same way as in training. Getting this wrong gives worse scores without any error.
 
 The evaluation uses a GPU and takes a while, so you may want to run it in `tmux` too (Step 4.1).
 
 **Box scoring (default).** With the label-refiner boxes (Step 5.1b), COWC is scored the same way as VEDAI and the validation set: a prediction counts as correct if its box overlaps a labeled box with IoU (overlap area divided by combined area) >= `--iou-thr` (default 0.5):
 ```bash
-python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_640.pt --test-dir test_data --val-data data/cowc_512/dataset.yaml --train-imgsz 640
-python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_512.pt --test-dir test_data --val-data data/cowc_512/dataset.yaml --train-imgsz 512
+python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_640.pt --test-dir test_data --val-data configs/cowc_512.yaml --train-imgsz 640
+python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_512.pt --test-dir test_data --val-data configs/cowc_512.yaml --train-imgsz 512
 ```
 
 **Point scoring.** With the center points from `test_data.zip` (Step 5.1a), add `--cowc-scoring point`: a prediction counts as correct if its center is within `--dist-thr` pixels (default 25 at 15 cm, scaled for coarser GSDs) of a car's center. Point scoring reads COWC from `test_data/COWC_point`; to point-score the label-refiner boxes by their centers instead, add `--cowc-dir COWC`.
 ```bash
-python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_640.pt --test-dir test_data --val-data data/cowc_512/dataset.yaml --train-imgsz 640 --cowc-scoring point
+python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_640.pt --test-dir test_data --val-data configs/cowc_512.yaml --train-imgsz 640 --cowc-scoring point
 ```
 
 Other useful options:
 * `--datasets COWC VEDAI` and `--variants 15cm_base` evaluate only some datasets or variants. `--image-glob '*_co.*'` keeps only matching images (here, VEDAI color). Add `--tag <name>` so a partial run writes to `Eval_Results_YOLO_<model_name>_<name>/` instead of overwriting the full results:
   ```bash
-  python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_640.pt --test-dir test_data --val-data data/cowc_512/dataset.yaml --train-imgsz 640 --datasets VEDAI --variants 15cm_base --image-glob '*_co.*' --tag VEDAI15_co
+  python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_640.pt --test-dir test_data --val-data configs/cowc_512.yaml --train-imgsz 640 --datasets VEDAI --variants 15cm_base --image-glob '*_co.*' --tag VEDAI15_co
   ```
 * The model gives each prediction a confidence score, and only predictions above a threshold are counted. `--threshold-source val` (default) picks each variant's threshold on the validation images (`--val-data`), resampled to that variant's GSD. `--threshold-source test` picks it on the test data itself, which gives optimistic F1 scores. Either way, the CSV also reports `Oracle_F1`/`Oracle_conf`, the best F1 possible on the test data, as an upper bound.
 * `--out-dir <folder>` writes the `Eval_Results_YOLO_*` folders inside `<folder>` instead of the repo root.

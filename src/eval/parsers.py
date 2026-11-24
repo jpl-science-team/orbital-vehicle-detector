@@ -29,8 +29,8 @@ def parse_args():
                         help="Pick each variant's F1 confidence threshold on matching degraded copies of the validation set (val), "
                              "or on the test data itself (test; optimistic, the pre-2026-11 behavior)")
     parser.add_argument("--val-data", type=str, required=True,
-                        help="Ultralytics dataset.yaml whose 'val' split (15cm GSD) is used to calibrate thresholds "
-                             "(e.g. data/cowc_512/dataset.yaml); unused with --threshold-source test")
+                        help="Ultralytics dataset YAML the model was trained with (train.py --data, e.g. configs/cowc_512.yaml); "
+                             "its 'val' split (15cm GSD) is used to calibrate thresholds. Unused with --threshold-source test")
     parser.add_argument("--datasets", nargs="+", default=None,
                         help="Only evaluate these datasets (e.g. VEDAI). Default: all in DATASET_VARIANTS")
     parser.add_argument("--variants", nargs="+", default=None,

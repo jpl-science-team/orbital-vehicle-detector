@@ -1,0 +1,10 @@
+# COWC 512x512 training tiles (README Step 2), in the Ultralytics dataset format.
+# path is relative to the repo root, so run train.py and yolo_eval.py from there; no per-machine edit is needed.
+# Labels are found by Ultralytics' convention: images/<split>/x.png -> labels/<split>/x.txt
+path: data/cowc_512
+train: images/train
+val: images/val
+test: images/test   # not used: the RQ1 test data comes from test_data/ (README Step 5.1)
+
+names:
+  0: vehicle

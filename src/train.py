@@ -9,7 +9,8 @@ def parse_args():
     parser.add_argument("--img_size", type=int, required=True, help="Input image resolution size (e.g. 512 or 640)")
     parser.add_argument("--batch_size", type=int, default=16, help="Training batch size")
     parser.add_argument("--epochs", type=int, default=150, help="Number of training epochs")
-    parser.add_argument("--data", type=str, required=True, help="Path to dataset.yaml (e.g. data/cowc_512/dataset.yaml)")
+    parser.add_argument("--data", type=str, required=True,
+                        help="Ultralytics dataset YAML with the train/val folders and class names (e.g. configs/cowc_512.yaml)")
     parser.add_argument("--gpus", type=str, required=True, help="GPU IDs to use (e.g., '2,3'); check nvidia-smi for free ones")
     parser.add_argument("--workers", type=int, default=4, help="Number of data loader workers")
     parser.add_argument("--weights", type=str, default="yolo11n-obb.pt",
