@@ -1,4 +1,4 @@
-# src/run_eval.py
+# src/yolo_eval.py
 import glob
 import cv2
 import warnings

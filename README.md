@@ -224,7 +224,7 @@ Other useful options:
 * `--threshold-source val` (default) picks each variant's F1 confidence threshold on the validation set (`--val-data`, default `data/cowc_512/dataset.yaml`), degraded to that variant's resolution. `--threshold-source test` picks it on the test data itself, which gives optimistic F1 scores. Either way, the CSV also reports `Oracle_F1`/`Oracle_conf`, the best F1 on the test data, as an upper bound.
 * To choose the GPU, set `CUDA_VISIBLE_DEVICES`, e.g. `CUDA_VISIBLE_DEVICES=2 python src/yolo_eval.py ...`.
 
-Each results folder contains `rq1_summary_metrics.csv` (one row per dataset and variant: precision, recall, F1, mAP50, thresholds), `rq1_paper_table.tex`, `RQ1_ANSWER_SUMMARY.md`, plots in `ppt_plots/`, and the best and worst images per variant in `qualitative/`.
+Each results folder contains `rq1_summary_metrics.csv` (one row per dataset and variant: precision, recall, F1, mAP50, thresholds), `rq1_paper_table.tex`, `RQ1_ANSWER_SUMMARY.md`, plots in `ppt_plots/`, and the best and worst images per variant in `qualitative/`. In the committed results, folders ending in `_COWC15_points` were scored by center points on the `test_data.zip` tiles (Option A), and folders ending in `_COWC15_box` by the label-refiner boxes (Option B).
 
 To evaluate an O2-RT-DETR checkpoint instead (in `detr_env`), and to compare the two models' results:
 ```bash
