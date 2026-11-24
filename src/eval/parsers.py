@@ -23,6 +23,9 @@ def parse_args():
                              "or to the box centers within --dist-thr pixels (point; the pre-2026-11-23 behavior)")
     parser.add_argument("--dist-thr", type=float, default=25.0,
                         help="COWC point-match distance in pixels at 15cm GSD (scaled per variant to keep the ground distance fixed)")
+    parser.add_argument("--cowc-dir", type=str, default=None,
+                        help="COWC folder name under --test-dir. Default: COWC (label-refiner boxes) for box scoring, "
+                             "COWC_point (test_data.zip center points) for point scoring")
     parser.add_argument("--imgsz", type=int, default=None,
                         help="Fixed inference size for every image (overrides --train-imgsz scaling)")
     parser.add_argument("--train-imgsz", type=int, default=512,
@@ -68,6 +71,10 @@ def get_content_gsd(dataset, variant_name):
     """GSD (cm/px) of the image content, before any resampling back up. Angel is natively 50cm, so its upscale variants keep 50cm content."""
     if dataset == "Angel": return 50
     return parse_gsd_and_deg_type(variant_name)[0]
+
+def cowc_dir_name(args):
+    """Box labels live in test_data/COWC, the test_data.zip center points in test_data/COWC_point."""
+    return args.cowc_dir or ("COWC_point" if args.cowc_scoring == "point" else "COWC")
 
 def parse_label_file(label_path, is_cowc=False, is_vedai=False, cowc_boxes=False):
     """COWC labels are "0 x1 y1 .. x4 y4" OBBs in pixels; returns their center points unless cowc_boxes is set."""

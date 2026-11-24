@@ -12,11 +12,14 @@ It handles two main AI training pipelines:
 1. **O2-RT-DETR (OpenMMLab):** 
 2. **YOLO (Ultralytics):** 
 
-These instructions are for running on the MLIA machines.
+Authors:
+* Bridgit Graddy
+* Emily Dunkel
+* Mike Burl
 
 # Status
 
-*This is a work in progress. DETR is still in progress, but YOLO is set up and runs*
+This is a work in progress. DETR is still in progress, but YOLO is set up and runs
 
 ---
 
@@ -187,14 +190,15 @@ The evaluation reads `test_data/<Dataset>/<variant>/{images,labels}` (COWC and V
 https://drive.google.com/drive/folders/1FTX76Ybf0PLiqdwyKsCvyi2WsF-ccoxY
 ```bash
 unzip test_data.zip
+mv test_data/COWC test_data/COWC_point
 ```
-In this zip, each COWC car is labeled with a single center point (`0 x y`), not a box. Evaluate it with `--cowc-scoring point` (see Step 5.3), or the evaluation stops with an error.
+In this zip, each COWC car is labeled with a single center point (`0 x y`), not a box. Rename its `COWC` folder to `COWC_point` as above, so that Option B can write the boxes to `test_data/COWC` without overwriting the points. Evaluating with `--cowc-scoring point` (see Step 5.3) reads `test_data/COWC_point`.
 
 **Option B: build COWC with bounding boxes from label-refiner.** The [label-refiner](https://github.jpl.nasa.gov/science-team-algorithms/label-refiner) repo turns COWC's center points into SAM-fitted oriented boxes. Check it out next to this repo so that `../label-refiner/datasets_refined/COWC_512/test/{images,labels}` exists, then run from the repo root:
 ```bash
 python src/preprocess_rq1_datasets.py
 ```
-This writes all five COWC variants to `test_data/COWC/` (905 tiles, 10,847 boxes, a few minutes on CPU), overwriting any COWC data already there. About 7% of the boxes are label-refiner's 32×32 px fallback squares, used where SAM didn't give a usable outline. The script also rebuilds VEDAI and Angel if their raw data is in `data/VEDAI` and `data/Angel`; otherwise it skips them, so you can unzip `test_data.zip` first for VEDAI and then run this to replace COWC. Note that these tiles are not the same image files as the ones in the zip.
+This writes all five COWC variants to `test_data/COWC/` (905 tiles, 10,847 boxes, a few minutes on CPU), replacing any COWC data already there (the center points in `test_data/COWC_point` are left alone). About 7% of the boxes are label-refiner's 32×32 px fallback squares, used where SAM didn't give a usable outline. The script also rebuilds VEDAI and Angel if their raw data is in `data/VEDAI` and `data/Angel`; otherwise it skips them, so you can unzip `test_data.zip` first for VEDAI and the COWC points and then run this to add the COWC boxes. Note that these tiles are not the same image files as the ones in the zip.
 
 #### Step 5.2: Put the weights in place
 ```bash
@@ -211,7 +215,7 @@ python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_640.p
 python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_512.pt --train-imgsz 512
 ```
 
-With the center points from `test_data.zip` (Option A), add `--cowc-scoring point`: a prediction is correct if its center is within `--dist-thr` pixels (default 25 at 15 cm, scaled for coarser GSDs) of a car's center. This was the only behavior before 2026-11-23. It also works on the label-refiner boxes, using their centers.
+With the center points from `test_data.zip` (Option A), add `--cowc-scoring point`: a prediction is correct if its center is within `--dist-thr` pixels (default 25 at 15 cm, scaled for coarser GSDs) of a car's center. This was the only behavior before 2026-11-23. Point scoring reads COWC from `test_data/COWC_point`; to point-score the label-refiner boxes by their centers instead, add `--cowc-dir COWC`.
 ```bash
 python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_640.pt --train-imgsz 640 --cowc-scoring point
 ```
