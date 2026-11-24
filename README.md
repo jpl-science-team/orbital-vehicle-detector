@@ -6,11 +6,11 @@ This software may be subject to U.S. export control laws. By accepting this soft
 
 # About
 
-This repository is a complete workflow hub for training AI models to detect vehicles in satellite and aerial imagery. 
+This repository is a complete workflow hub for training AI models to detect vehicles in satellite and aerial imagery. The models draw an oriented (rotated) box around each vehicle. The main research question is how detection accuracy changes as image resolution gets coarser.
 
 It handles two main AI training pipelines:
-1. **O2-RT-DETR (OpenMMLab):** 
-2. **YOLO (Ultralytics):** 
+1. **O2-RT-DETR (OpenMMLab):** a transformer-based detector. Still in progress.
+2. **YOLO (Ultralytics):** YOLO11n-OBB, a small, fast detector. Set up and working; this README focuses on it.
 
 Authors:
 * Bridgit Graddy
@@ -19,7 +19,19 @@ Authors:
 
 # Status
 
-This is a work in progress. DETR is still in progress, but YOLO is set up and runs
+This is a work in progress. DETR is still in progress, but YOLO is set up and runs.
+
+# Terms Used in This README
+
+* **GSD (ground sample distance):** how much ground one pixel covers. At 15 cm GSD a car is about 30 pixels long; at 60 cm it is about 8.
+* **OBB (oriented bounding box):** a box that can rotate to follow the vehicle, stored as its 4 corner points.
+* **Datasets:** COWC and VEDAI are aerial images of cars at about 15 cm and 12.5 cm GSD. The models are trained on COWC. Angel is a third test dataset, at 50 cm GSD.
+* **Variants:** each test dataset is evaluated at several GSDs, made by resampling the original images:
+  * `15cm_base`: the images at 15 cm GSD.
+  * `30cm_naive`, `60cm_naive`: shrunk to 30 or 60 cm GSD, so images and cars get smaller in pixels.
+  * `30cm_scalenorm`, `60cm_scalenorm`: shrunk to 30 or 60 cm, then enlarged back to the 15 cm pixel size. Cars are the same size in pixels as in `15cm_base`, but blurrier.
+  * Angel only: `50cm_base` (original), and `30cm_upscale`, `15cm_upscale` (enlarged).
+* **Weights:** the file a trained model is saved in (`.pt`).
 
 ---
 
@@ -36,7 +48,7 @@ This is a work in progress. DETR is still in progress, but YOLO is set up and ru
 
 ## 0. Install Miniforge on Cluster (One-Time Setup)
 
-If the cluster does not already have Miniforge or Conda installed, run this single command to download and install it in your personal home folder:
+If the cluster does not already have Miniforge or Conda installed (check with `conda --version`), run these commands to download and install it in your personal home folder:
 
 ```bash
 curl -L -O https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
@@ -49,7 +61,7 @@ bash Miniforge3-Linux-x86_64.sh -b -p ~/miniforge3 && ~/miniforge3/bin/conda ini
 
 ## 1. Clone Repository & Setup Directories
 
-Log into your **Analysis Cluster** via your terminal, clone this codebase, and create the required data and checkpoint folders in a single step:
+Log into your **Analysis Cluster** via your terminal, clone this codebase, and create the data folder:
 
 ```bash
 git lfs install
@@ -60,15 +72,17 @@ cd orbital-vehicle-detector
 mkdir -p data
 ```
 
+All commands in this README are run from this repo folder, `~/orbital-vehicle-detector`, unless a step says otherwise.
+
 ---
 
 ## 2. Transfer Files from Local PC to Cluster
 
-Download the COWC_512.zip from the Google Drive data folder 
+Download `cowc_512.zip` (the COWC training and validation tiles) from the Google Drive data folder to your own computer:
 https://drive.google.com/drive/folders/1FTX76Ybf0PLiqdwyKsCvyi2WsF-ccoxY
 
 ### Transfer Raw Datasets
-From Your local terminal
+From a terminal on your own computer (not the cluster), copy it to the cluster. Replace `/path/to/local/` with where you downloaded it, `user` with your cluster username, and `analysis` with the cluster's hostname:
 
 ```bash
 scp -C /path/to/local/cowc_512.zip user@analysis:~/orbital-vehicle-detector/data/
@@ -76,14 +90,15 @@ scp -C /path/to/local/cowc_512.zip user@analysis:~/orbital-vehicle-detector/data
 
 ### Unzip the Dataset (On Cluster)
 ```bash
-cd ~/orbital-vehicle-detector/data && unzip cowc_512.zip
+cd ~/orbital-vehicle-detector/data && unzip cowc_512.zip && cd ..
 ```
+This creates `data/cowc_512/` with `images/`, `labels/` and `dataset.yaml`.
 
 ---
 
 ## 3. Install Conda AI Environments
 
-Return to your **Cluster Terminal**. Because DETR and YOLO require different software dependencies, install these two separate environments.
+Return to your **Cluster Terminal**. Because DETR and YOLO require different software dependencies, they each get their own environment. If you only use YOLO, you can skip Environment 1.
 
 ### Environment 1: DETR / O2-RT-DETR (`detr_env`)
 
@@ -102,21 +117,26 @@ pip install -r requirements-detr.txt
 ### Environment 2: YOLO (`yolo_env`)
 
 ```bash
+source ~/miniforge3/bin/activate
 conda create -n yolo_env python=3.10 -y
 conda activate yolo_env 
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 pip install -r requirements-yolo.txt
 ```
 
+Each time you open a new terminal, activate the environment again with `source ~/miniforge3/bin/activate` and `conda activate yolo_env` (or `detr_env`).
+
 ---
 
-### Step 3.1: Update the dataset.yaml
+### Step 3.1: Update the dataset.yaml (Required)
 The `path:` line in `data/cowc_512/dataset.yaml` must be the absolute path to the dataset on your machine. From the repo root, this sets it:
 ```bash
 cd ~/orbital-vehicle-detector
 sed -i "s|^path:.*|path: $(pwd)/data/cowc_512|" data/cowc_512/dataset.yaml
 head -1 data/cowc_512/dataset.yaml   # should print path: /home/<you>/orbital-vehicle-detector/data/cowc_512
 ```
+
+---
 
 ## 4. Run Model Training (via `tmux`)
 
@@ -136,7 +156,9 @@ tmux new -s training_session
 
 ### Step 4.2: Run Training Commands (Inside `tmux`)
 
-Choose **one** of the following commands based on which model you want to train:
+Choose **one** of the following commands based on which model you want to train. If you're not sure, use YOLO (Option B).
+
+Before starting, run `nvidia-smi` to see which GPUs are free: a GPU with no processes listed under it and little memory in use is free. The GPU numbers you pick go in `--gpus` (YOLO). If a previous run was killed, leftover processes can hold the GPUs and stall the new run.
 
 #### Option A: Train O2-RT-DETR (Oriented Bounding Boxes across 4 GPUs)
 
@@ -156,23 +178,25 @@ conda activate yolo_env
 NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 640 --batch_size 16 --epochs 150 --data data/cowc_512/dataset.yaml --gpus 2,3
 ```
 
-`--img_size`, `--data` and `--gpus` are required; `--batch_size` and `--epochs` default to 16 and 150. Training starts from Ultralytics' pretrained `yolo11n-obb.pt`, which is downloaded to the repo root the first time; pass `--weights <file.pt>` to start from another checkpoint instead. `--img_size` sets the size images are resized to before training. The COWC tiles are 512×512, so:
-* `--img_size 512` trains at the tiles' native resolution (no resizing).
-* `--img_size 640` (Ultralytics' default) enlarges every tile 1.25× before training.
+* `--img_size`, `--data` and `--gpus` are required.
+  * `--img_size` sets the size images are resized to before training. The COWC tiles are 512×512, so `--img_size 512` trains at the tiles' native resolution (no resizing), and `--img_size 640` (Ultralytics' default) enlarges every tile 1.25×. Write down which one you used: the evaluation needs it (Step 5.3).
+  * `--data` is the `dataset.yaml` from Step 3.1.
+  * `--gpus` is a comma-separated list of free GPU numbers from `nvidia-smi`, e.g. `0` or `2,3`.
+* `--batch_size` and `--epochs` default to 16 and 150.
+* Training starts from Ultralytics' pretrained `yolo11n-obb.pt`, which is downloaded to the repo root the first time. Pass `--weights <file.pt>` to start from another checkpoint instead.
+* `NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1` work around a multi-GPU communication problem on the cluster; keep them.
 
-Each run saves to its own timestamped folder, `runs/obb/runs/detect/<date>_<time>_yolo11n_res<img_size>/`, so runs at different sizes don't overwrite each other. Training stops early if validation mAP hasn't improved for 15 epochs.
-
-Before starting, check with `nvidia-smi` that the GPUs in `--gpus` are free. If a previous run was killed, leftover processes can hold the GPUs and stall the new run.
+Each run saves to its own timestamped folder, `runs/obb/runs/detect/<date>_<time>_yolo11n_res<img_size>/`, so runs at different sizes don't overwrite each other. Training stops early if validation mAP hasn't improved for 15 epochs. The terminal prints the progress of each epoch.
 
 ---
 
 ### Step 4.3: Detach and Leave Training Running
 
-Press `Ctrl + B`, release both keys, and then press `D`.
+Press `Ctrl + B`, release both keys, and then press `D`. Training keeps running; use `tmux attach -t training_session` to check on it.
 
 ### Step 4.4: Plot the Training Curves
 
-When training finishes, the run folder contains Ultralytics' own plots (`results.png`, PR/F1 curves, confusion matrix) and `results.csv`. To plot training and validation losses on the same axes, plus validation mAP and precision/recall:
+When training finishes, the run folder contains Ultralytics' own plots (`results.png`, PR/F1 curves, confusion matrix) and `results.csv`. To plot training and validation losses on the same axes, plus validation mAP and precision/recall (in `yolo_env`):
 ```bash
 python src/plot_training.py runs/obb/runs/detect/<run_name>
 # e.g. python src/plot_training.py runs/obb/runs/detect/20261106_135621_yolo11n_res640
@@ -184,7 +208,7 @@ This saves `results_combined.png` in the run folder. A dotted vertical line mark
 
 ## 5. Run Testing Inference and Eval
 
-Run all of Step 5 from the repo root in `yolo_env`:
+This step runs the trained model on test images at each GSD variant and measures how many vehicles it finds. Run all of Step 5 from the repo root in `yolo_env`:
 ```bash
 source ~/miniforge3/bin/activate
 cd ~/orbital-vehicle-detector
@@ -192,47 +216,58 @@ conda activate yolo_env
 ```
 
 ### Step 5.1: Get the test data
-The evaluation reads `test_data/<Dataset>/<variant>/{images,labels}` (COWC and VEDAI at 15, 30 and 60 cm GSD, Angel at 50, 30 and 15 cm). COWC comes in two versions that label cars differently: center points in `test_data/COWC_point` and oriented boxes in `test_data/COWC`. Step 5.1a is required, since it is the only source of VEDAI. Step 5.1b is optional but recommended, because box scoring is the default in Step 5.3. Angel is not distributed with this repo yet: it is only evaluated if you have the raw data in `data/Angel` and run Step 5.1b; otherwise the evaluation prints a warning for each Angel variant and skips it.
+The evaluation reads `test_data/<Dataset>/<variant>/{images,labels}` (see [Terms](#terms-used-in-this-readme) for the variants). COWC comes in two versions that label cars differently: center points in `test_data/COWC_point` and oriented boxes in `test_data/COWC`.
 
-**Step 5.1a: download `test_data.zip` (VEDAI, and COWC center points).** Download it from the Google Drive data folder, copy it to the repo root on the cluster (with `scp`, as in Step 2), then unzip it and rename its COWC folder:
+* **Step 5.1a is required,** since it is the only source of VEDAI.
+* **Step 5.1b is optional but recommended,** because the evaluation scores COWC with the boxes by default.
+* **Angel** is not distributed with this repo yet. It is only evaluated if you have the raw data in `data/Angel` and run Step 5.1b; otherwise the evaluation prints a warning for each Angel variant and skips it.
+
+**Step 5.1a: download `test_data.zip` (VEDAI, and COWC center points).** Download it from the Google Drive data folder, copy it to the repo root on the cluster with `scp` as in Step 2, then unzip it and rename its COWC folder:
 https://drive.google.com/drive/folders/1FTX76Ybf0PLiqdwyKsCvyi2WsF-ccoxY
 ```bash
+# on your own computer:
+scp -C /path/to/local/test_data.zip user@analysis:~/orbital-vehicle-detector/
+# on the cluster, in the repo root:
 unzip test_data.zip
 mv test_data/COWC test_data/COWC_point
 ```
 In this zip, each COWC car is labeled with a single center point (`0 x y`), not a box. The rename keeps the points separate from the boxes that Step 5.1b writes to `test_data/COWC`. Evaluating with `--cowc-scoring point` (see Step 5.3) reads `test_data/COWC_point`. If you skip the rename, point scoring finds no COWC images and skips COWC with a warning.
 
-**Step 5.1b: build COWC with bounding boxes from label-refiner.** The [label-refiner](https://github.com/jpl-science-team/label-refiner) repo turns COWC's center points into SAM-fitted oriented boxes. Clone it next to this repo (so it is at `~/label-refiner`) and follow its README to produce the refined COWC test split. Cloning alone isn't enough, since the refined labels aren't committed there. When `../label-refiner/datasets_refined/COWC_512/test/{images,labels}` exists, run from the repo root:
+**Step 5.1b: build COWC with bounding boxes from label-refiner.** The [label-refiner](https://github.com/jpl-science-team/label-refiner) repo turns COWC's center points into SAM-fitted oriented boxes. Clone it next to this repo (so it is at `~/label-refiner`) and follow its README to produce the refined COWC test split. Cloning alone isn't enough, since the refined labels aren't committed there. When `../label-refiner/datasets_refined/COWC_512/test/{images,labels}` exists, run from this repo's root:
 ```bash
 python src/preprocess_rq1_datasets.py --raw-dir data --cowc-refined-dir ../label-refiner/datasets_refined/COWC_512/test --out-dir test_data
 ```
-`--raw-dir` and `--cowc-refined-dir` are only read, never changed. `--out-dir` is the folder you then pass to the evaluation as `--test-dir`.
-This writes all five COWC variants to `test_data/COWC/` (905 tiles, 10,847 boxes, a few minutes on CPU), replacing any COWC data already there (the center points in `test_data/COWC_point` are left alone). About 7% of the boxes are label-refiner's 32×32 px fallback squares, used where SAM didn't give a usable outline. The script also rebuilds VEDAI and Angel if their raw data is in `data/VEDAI` and `data/Angel`; otherwise it skips them, so the VEDAI data from Step 5.1a is kept. Note that these tiles are not the same image files as the ones in the zip.
+* `--raw-dir` (raw VEDAI and Angel data, if any) and `--cowc-refined-dir` (the label-refiner boxes) are only read, never changed.
+* `--out-dir` is where the test data is written; it's the folder you pass to the evaluation as `--test-dir`.
+
+This writes all five COWC variants to `test_data/COWC/` (905 tiles, 10,847 boxes, a few minutes on CPU), replacing any COWC data already there. The center points in `test_data/COWC_point` are left alone. About 7% of the boxes are label-refiner's 32×32 px fallback squares, used where SAM didn't give a usable outline. The script also rebuilds VEDAI and Angel if their raw data is in `data/VEDAI` and `data/Angel`; otherwise it skips them, so the VEDAI data from Step 5.1a is kept. The COWC tiles made here are not the same image files as the ones in the zip, so box-scored and point-scored COWC results are on slightly different images.
 
 ### Step 5.2: Put the weights in place
-Copy the trained model (`best.pt` from the run folder of Step 4) into `models/weights/test_weights/`, giving it a name that includes the training size. For a run trained with `--img_size 640`:
+Copy the trained model (`best.pt` from the run folder of Step 4) into `models/weights/test_weights/`, giving it a name that says what it is. Here `15GSD` means it was trained on 15 cm GSD data, and `640` is the `--img_size` it was trained at:
 ```bash
 mkdir -p models/weights/test_weights
 ls runs/obb/runs/detect/   # find your run's folder name
 cp runs/obb/runs/detect/<run_name>/weights/best.pt models/weights/test_weights/YOLO11n_15GSD_640.pt
 # e.g. cp runs/obb/runs/detect/20261106_135621_yolo11n_res640/weights/best.pt models/weights/test_weights/YOLO11n_15GSD_640.pt
 ```
-Results are written to `Eval_Results_YOLO_<model_name>/`, so reusing a name overwrites earlier results.
+Results are written to `Eval_Results_YOLO_<model_name>/` (e.g. `Eval_Results_YOLO_YOLO11n_15GSD_640/`), so reusing a name overwrites earlier results.
 
 ### Step 5.3: Run the evaluation
 Four inputs are required:
 * `--models`: the weights from Step 5.2 (you can list several, if they were all trained at the same size).
 * `--test-dir`: the test data folder from Step 5.1, `test_data`.
-* `--val-data`: the training `dataset.yaml` (`data/cowc_512/dataset.yaml`), whose validation split is used to pick the confidence threshold (see the options below).
-* `--train-imgsz`: the `--img_size` the model was trained at, so test images are scaled the same way as in training.
+* `--val-data`: the training `dataset.yaml` (`data/cowc_512/dataset.yaml`), whose validation images are used to pick the confidence threshold (see the options below).
+* `--train-imgsz`: the `--img_size` the model was trained at (Step 4.2), so test images are scaled the same way as in training. Getting this wrong gives worse scores without any error.
 
-With the label-refiner boxes (Step 5.1b), COWC is scored the same way as VEDAI and the validation set: a prediction is correct if its box overlaps a labeled box with IoU >= `--iou-thr` (default 0.5). This is the default:
+The evaluation uses a GPU and takes a while, so you may want to run it in `tmux` too (Step 4.1).
+
+**Box scoring (default).** With the label-refiner boxes (Step 5.1b), COWC is scored the same way as VEDAI and the validation set: a prediction counts as correct if its box overlaps a labeled box with IoU (overlap area divided by combined area) >= `--iou-thr` (default 0.5):
 ```bash
 python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_640.pt --test-dir test_data --val-data data/cowc_512/dataset.yaml --train-imgsz 640
 python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_512.pt --test-dir test_data --val-data data/cowc_512/dataset.yaml --train-imgsz 512
 ```
 
-With the center points from `test_data.zip` (Step 5.1a), add `--cowc-scoring point`: a prediction is correct if its center is within `--dist-thr` pixels (default 25 at 15 cm, scaled for coarser GSDs) of a car's center. This was the only behavior before 2026-11-23. Point scoring reads COWC from `test_data/COWC_point`; to point-score the label-refiner boxes by their centers instead, add `--cowc-dir COWC`.
+**Point scoring.** With the center points from `test_data.zip` (Step 5.1a), add `--cowc-scoring point`: a prediction counts as correct if its center is within `--dist-thr` pixels (default 25 at 15 cm, scaled for coarser GSDs) of a car's center. Point scoring reads COWC from `test_data/COWC_point`; to point-score the label-refiner boxes by their centers instead, add `--cowc-dir COWC`.
 ```bash
 python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_640.pt --test-dir test_data --val-data data/cowc_512/dataset.yaml --train-imgsz 640 --cowc-scoring point
 ```
@@ -242,11 +277,18 @@ Other useful options:
   ```bash
   python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_640.pt --test-dir test_data --val-data data/cowc_512/dataset.yaml --train-imgsz 640 --datasets VEDAI --variants 15cm_base --image-glob '*_co.*' --tag VEDAI15_co
   ```
-* `--threshold-source val` (default) picks each variant's F1 confidence threshold on the validation set (`--val-data`), degraded to that variant's resolution. `--threshold-source test` picks it on the test data itself, which gives optimistic F1 scores. Either way, the CSV also reports `Oracle_F1`/`Oracle_conf`, the best F1 on the test data, as an upper bound.
+* The model gives each prediction a confidence score, and only predictions above a threshold are counted. `--threshold-source val` (default) picks each variant's threshold on the validation images (`--val-data`), resampled to that variant's GSD. `--threshold-source test` picks it on the test data itself, which gives optimistic F1 scores. Either way, the CSV also reports `Oracle_F1`/`Oracle_conf`, the best F1 possible on the test data, as an upper bound.
 * `--out-dir <folder>` writes the `Eval_Results_YOLO_*` folders inside `<folder>` instead of the repo root.
 * To choose the GPU, set `CUDA_VISIBLE_DEVICES`, e.g. `CUDA_VISIBLE_DEVICES=2 python src/yolo_eval.py ...`.
 
-Each results folder contains `rq1_summary_metrics.csv` (one row per dataset and variant: precision, recall, F1, mAP50, thresholds), `rq1_paper_table.tex`, `RQ1_ANSWER_SUMMARY.md`, plots in `ppt_plots/`, and the best and worst images per variant in `qualitative/`. In the committed results, folders ending in `_COWC15_points` were scored by center points on the `test_data.zip` tiles (Step 5.1a), and folders ending in `_COWC15_box` by the label-refiner boxes (Step 5.1b).
+**Reading the results.** Each results folder contains:
+* `rq1_summary_metrics.csv`: one row per dataset and variant. TP, FP and FN count correct predictions, false detections and missed vehicles. Precision is the fraction of predictions that are real vehicles, recall is the fraction of vehicles found, F1 combines the two, and mAP50 summarizes precision and recall over all thresholds at IoU 0.5. Higher is better for all four.
+* `RQ1_ANSWER_SUMMARY.md`: the same table in Markdown, easy to read on GitHub; start here.
+* `rq1_paper_table.tex`: the same numbers as a LaTeX table.
+* `ppt_plots/`: bar charts of mAP50 and F1 per variant, and per-dataset plots of how accuracy changes with GSD.
+* `qualitative/`: the two best and two worst images per variant. Correct predictions are drawn in green, false detections in red and missed vehicles in blue.
+
+In the committed results, folders ending in `_COWC15_points` were scored by center points on the `test_data.zip` tiles (Step 5.1a), and folders ending in `_COWC15_box` by the label-refiner boxes (Step 5.1b).
 
 To evaluate an O2-RT-DETR checkpoint instead (in `detr_env`), and to compare the two models' results:
 ```bash
