@@ -12,6 +12,9 @@ def parse_args():
     parser.add_argument("--data", type=str, required=True, help="Path to dataset.yaml (e.g. data/cowc_512/dataset.yaml)")
     parser.add_argument("--gpus", type=str, required=True, help="GPU IDs to use (e.g., '2,3'); check nvidia-smi for free ones")
     parser.add_argument("--workers", type=int, default=4, help="Number of data loader workers")
+    parser.add_argument("--weights", type=str, default="yolo11n-obb.pt",
+                        help="Starting weights. The default, yolo11n-obb.pt (Ultralytics' pretrained YOLO11n-OBB), "
+                             "is downloaded if missing; any other path must already exist")
     return parser.parse_args()
 
 def run_training(args):
@@ -28,12 +31,14 @@ def run_training(args):
     print(f"Target Resolution:  {args.img_size}x{args.img_size}")
     print(f"Target Devices:     GPU {device_str}")
     print(f"Batch Size:         {args.batch_size}")
-    print(f"Dataset Config:     {args.data}\n")
+    print(f"Dataset Config:     {args.data}")
 
-    # STRICTLY LOCKED: YOLO11 Nano OBB Deployment Anchor
-    weights_filename = "yolo11n-obb.pt"
-    
+    weights_filename = args.weights
+    print(f"Starting Weights:   {weights_filename}\n")
+
     if not os.path.exists(weights_filename):
+        if weights_filename != "yolo11n-obb.pt":
+            raise FileNotFoundError(f"--weights {weights_filename} not found")
         print(f"--- Enforcing Strict YOLO11 Release Asset Download ---")
         # Direct authenticated binary stream path bypassing package version mapping
         url = "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n-obb.pt"

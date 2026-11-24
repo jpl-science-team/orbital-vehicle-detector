@@ -25,8 +25,8 @@ def main():
             continue
             
         model_name = model_path.stem
-        output_dir = Path(f"Eval_Results_YOLO_{model_name}" + (f"_{args.tag}" if args.tag else ""))
-        output_dir.mkdir(exist_ok=True)
+        output_dir = Path(args.out_dir) / (f"Eval_Results_YOLO_{model_name}" + (f"_{args.tag}" if args.tag else ""))
+        output_dir.mkdir(parents=True, exist_ok=True)
         qual_dir = output_dir / "qualitative"
         qual_dir.mkdir(exist_ok=True)
 

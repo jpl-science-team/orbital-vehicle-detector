@@ -29,7 +29,8 @@ This is a work in progress. DETR is still in progress, but YOLO is set up and ru
 - [2. Transfer Files from Local PC to Cluster](#2-transfer-files-from-local-pc-to-cluster)
 - [3. Install Conda AI Environments](#3-install-conda-ai-environments)
 - [4. Run Model Training (via tmux)](#4-run-model-training-via-tmux)
-- [5. Run Testing Inference and Eval](#step-5-run-testing-inference-and-eval)
+- [5. Run Testing Inference and Eval](#5-run-testing-inference-and-eval)
+- [6. Look at Predictions on Single Images](#6-look-at-predictions-on-single-images)
 
 ---
 
@@ -155,7 +156,7 @@ conda activate yolo_env
 NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 640 --batch_size 16 --epochs 150 --data data/cowc_512/dataset.yaml --gpus 2,3
 ```
 
-`--img_size`, `--data` and `--gpus` are required; `--batch_size` and `--epochs` default to 16 and 150. `--img_size` sets the size images are resized to before training. The COWC tiles are 512×512, so:
+`--img_size`, `--data` and `--gpus` are required; `--batch_size` and `--epochs` default to 16 and 150. Training starts from Ultralytics' pretrained `yolo11n-obb.pt`, which is downloaded to the repo root the first time; pass `--weights <file.pt>` to start from another checkpoint instead. `--img_size` sets the size images are resized to before training. The COWC tiles are 512×512, so:
 * `--img_size 512` trains at the tiles' native resolution (no resizing).
 * `--img_size 640` (Ultralytics' default) enlarges every tile 1.25× before training.
 
@@ -174,10 +175,14 @@ Press `Ctrl + B`, release both keys, and then press `D`.
 When training finishes, the run folder contains Ultralytics' own plots (`results.png`, PR/F1 curves, confusion matrix) and `results.csv`. To plot training and validation losses on the same axes, plus validation mAP and precision/recall:
 ```bash
 python src/plot_training.py runs/obb/runs/detect/<run_name>
+# e.g. python src/plot_training.py runs/obb/runs/detect/20261106_135621_yolo11n_res640
 ```
+`<run_name>` is the timestamped folder from Step 4.2; `ls runs/obb/runs/detect/` lists them.
 This saves `results_combined.png` in the run folder. A dotted vertical line marks the best epoch (the one saved as `weights/best.pt`).
 
-### Step 5: Run Testing Inference and Eval
+---
+
+## 5. Run Testing Inference and Eval
 
 Run all of Step 5 from the repo root in `yolo_env`:
 ```bash
@@ -186,7 +191,7 @@ cd ~/orbital-vehicle-detector
 conda activate yolo_env
 ```
 
-#### Step 5.1: Get the test data
+### Step 5.1: Get the test data
 The evaluation reads `test_data/<Dataset>/<variant>/{images,labels}` (COWC and VEDAI at 15, 30 and 60 cm GSD, Angel at 50, 30 and 15 cm). COWC comes in two versions that label cars differently: center points in `test_data/COWC_point` and oriented boxes in `test_data/COWC`. Step 5.1a is required, since it is the only source of VEDAI. Step 5.1b is optional but recommended, because box scoring is the default in Step 5.3. Angel is not distributed with this repo yet: it is only evaluated if you have the raw data in `data/Angel` and run Step 5.1b; otherwise the evaluation prints a warning for each Angel variant and skips it.
 
 **Step 5.1a: download `test_data.zip` (VEDAI, and COWC center points).** Download it from the Google Drive data folder, copy it to the repo root on the cluster (with `scp`, as in Step 2), then unzip it and rename its COWC folder:
@@ -197,22 +202,24 @@ mv test_data/COWC test_data/COWC_point
 ```
 In this zip, each COWC car is labeled with a single center point (`0 x y`), not a box. The rename keeps the points separate from the boxes that Step 5.1b writes to `test_data/COWC`. Evaluating with `--cowc-scoring point` (see Step 5.3) reads `test_data/COWC_point`. If you skip the rename, point scoring finds no COWC images and skips COWC with a warning.
 
-**Step 5.1b: build COWC with bounding boxes from label-refiner.** The [label-refiner](https://github.jpl.nasa.gov/science-team-algorithms/label-refiner) repo turns COWC's center points into SAM-fitted oriented boxes. Check it out next to this repo so that `../label-refiner/datasets_refined/COWC_512/test/{images,labels}` exists, then run from the repo root:
+**Step 5.1b: build COWC with bounding boxes from label-refiner.** The [label-refiner](https://github.com/jpl-science-team/label-refiner) repo turns COWC's center points into SAM-fitted oriented boxes. Clone it next to this repo (so it is at `~/label-refiner`) and follow its README to produce the refined COWC test split. Cloning alone isn't enough, since the refined labels aren't committed there. When `../label-refiner/datasets_refined/COWC_512/test/{images,labels}` exists, run from the repo root:
 ```bash
-python src/preprocess_rq1_datasets.py
+python src/preprocess_rq1_datasets.py --raw-dir data --cowc-refined-dir ../label-refiner/datasets_refined/COWC_512/test --out-dir test_data
 ```
+`--raw-dir` and `--cowc-refined-dir` are only read, never changed. `--out-dir` is the folder you then pass to the evaluation as `--test-dir`.
 This writes all five COWC variants to `test_data/COWC/` (905 tiles, 10,847 boxes, a few minutes on CPU), replacing any COWC data already there (the center points in `test_data/COWC_point` are left alone). About 7% of the boxes are label-refiner's 32×32 px fallback squares, used where SAM didn't give a usable outline. The script also rebuilds VEDAI and Angel if their raw data is in `data/VEDAI` and `data/Angel`; otherwise it skips them, so the VEDAI data from Step 5.1a is kept. Note that these tiles are not the same image files as the ones in the zip.
 
-#### Step 5.2: Put the weights in place
+### Step 5.2: Put the weights in place
 Copy the trained model (`best.pt` from the run folder of Step 4) into `models/weights/test_weights/`, giving it a name that includes the training size. For a run trained with `--img_size 640`:
 ```bash
 mkdir -p models/weights/test_weights
 ls runs/obb/runs/detect/   # find your run's folder name
 cp runs/obb/runs/detect/<run_name>/weights/best.pt models/weights/test_weights/YOLO11n_15GSD_640.pt
+# e.g. cp runs/obb/runs/detect/20261106_135621_yolo11n_res640/weights/best.pt models/weights/test_weights/YOLO11n_15GSD_640.pt
 ```
 Results are written to `Eval_Results_YOLO_<model_name>/`, so reusing a name overwrites earlier results.
 
-#### Step 5.3: Run the evaluation
+### Step 5.3: Run the evaluation
 Four inputs are required:
 * `--models`: the weights from Step 5.2 (you can list several, if they were all trained at the same size).
 * `--test-dir`: the test data folder from Step 5.1, `test_data`.
@@ -236,6 +243,7 @@ Other useful options:
   python src/yolo_eval.py --models models/weights/test_weights/YOLO11n_15GSD_640.pt --test-dir test_data --val-data data/cowc_512/dataset.yaml --train-imgsz 640 --datasets VEDAI --variants 15cm_base --image-glob '*_co.*' --tag VEDAI15_co
   ```
 * `--threshold-source val` (default) picks each variant's F1 confidence threshold on the validation set (`--val-data`), degraded to that variant's resolution. `--threshold-source test` picks it on the test data itself, which gives optimistic F1 scores. Either way, the CSV also reports `Oracle_F1`/`Oracle_conf`, the best F1 on the test data, as an upper bound.
+* `--out-dir <folder>` writes the `Eval_Results_YOLO_*` folders inside `<folder>` instead of the repo root.
 * To choose the GPU, set `CUDA_VISIBLE_DEVICES`, e.g. `CUDA_VISIBLE_DEVICES=2 python src/yolo_eval.py ...`.
 
 Each results folder contains `rq1_summary_metrics.csv` (one row per dataset and variant: precision, recall, F1, mAP50, thresholds), `rq1_paper_table.tex`, `RQ1_ANSWER_SUMMARY.md`, plots in `ppt_plots/`, and the best and worst images per variant in `qualitative/`. In the committed results, folders ending in `_COWC15_points` were scored by center points on the `test_data.zip` tiles (Step 5.1a), and folders ending in `_COWC15_box` by the label-refiner boxes (Step 5.1b).
@@ -246,4 +254,19 @@ python src/detr_eval.py --config <cfg.py> --models <ckpt.pth> --test-dir test_da
 python src/compare_models.py --yolo-csv Eval_Results_YOLO_<name>/rq1_summary_metrics.csv --detr-csv Eval_Results_RTDETR_<name>/rq1_summary_metrics.csv
 ```
 `detr_eval.py` takes the same `--cowc-scoring`, `--cowc-dir` and `--dist-thr` options as `yolo_eval.py` and is meant to score COWC the same way, but this hasn't been tested yet (see Status). The committed `Eval_Results_RTDETR_*` results predate it and were scored by center points at a fixed 25 px. It doesn't support `--threshold-source val` yet: it always picks the F1 threshold on the test data, which is optimistic. To compare like with like, run `yolo_eval.py` with `--threshold-source test` too. `compare_models.py` labels the models `YOLO11n` and `RT-DETR` in the plots; change this with `--yolo-name` and `--detr-name`.
+
 ---
+
+## 6. Look at Predictions on Single Images
+
+These scripts are for looking at a model's predictions, not for scoring. Run them from the repo root in `yolo_env`.
+
+**One image:** `inf_on_image.py` runs a YOLO model on one image and saves a copy with the predicted boxes drawn (no labels or scores). Boxes below `--conf` (default 0.4) aren't drawn.
+```bash
+python src/inf_on_image.py --model models/weights/test_weights/YOLO11n_15GSD_640.pt --image test_data/COWC/15cm_base/images/Potsdam_ISPRS_top_potsdam_2_13_RGB_patch_512_1280.png --out predictions_drawn.jpg
+```
+
+**Browse the test data:** `viewer.py` opens a desktop window for stepping through the test data from Step 5.1 with the model's predictions drawn on it. Pick the dataset (`COWC`, `COWC_point`, `VEDAI`, ...) and GSD variant from the two dropdowns, and use the arrow keys or the buttons to move between images. Images are scaled as in `yolo_eval.py`, so pass the same `--train-imgsz`. Boxes below `--conf` (default 0.1) aren't drawn. The window needs a display, so run it on a machine with a screen or over `ssh -X`, not in a plain terminal session.
+```bash
+python src/viewer.py --model models/weights/test_weights/YOLO11n_15GSD_640.pt --test-dir test_data --train-imgsz 640
+```

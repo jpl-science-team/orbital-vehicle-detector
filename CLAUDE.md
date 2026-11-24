@@ -26,7 +26,7 @@ NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 bash O2-RT-DETR/tools/dist_train.sh O2-RT-D
 python src/plot_training.py runs/obb/runs/detect/<run_name>
 
 # Build the degraded-GSD test sandbox: data/ (read-only) -> test_data/
-python src/preprocess_rq1_datasets.py
+python src/preprocess_rq1_datasets.py --raw-dir data --cowc-refined-dir ../label-refiner/datasets_refined/COWC_512/test --out-dir test_data
 
 # RQ1 evaluation (--models, --test-dir, --val-data, --train-imgsz required)
 python src/yolo_eval.py --models <a.pt> [<b.pt> ...] --test-dir test_data --val-data data/cowc_512/dataset.yaml --train-imgsz 640   # must match train.py --img_size
