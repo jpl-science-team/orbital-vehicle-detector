@@ -1,0 +1,25 @@
+
+== 640 model
+  set                             n_gt  bestF1  @thr  F1@0.46  F1@0.10
+  COWC val (Vaihingen), IoU       1505   0.787  0.47    0.786    0.700
+  cowc_512 test Columbus, IoU     1551   0.610  0.28    0.597    0.585
+  cowc_512 test Potsdam, IoU      1665   0.907  0.58    0.894    0.811
+  COWC test Columbus, points      5750   0.516  0.01    0.171    0.355
+  COWC test Potsdam, points       5097   0.862  0.11    0.819    0.861
+  COWC test all, points          10847   0.670  0.04    0.551    0.653
+  VEDAI 15cm color, IoU           2033   0.869  0.45    0.868    0.801
+
+== 512 model
+  set                             n_gt  bestF1  @thr  F1@0.46  F1@0.10
+  COWC val (Vaihingen), IoU       1505   0.783  0.46    0.783    0.667
+  cowc_512 test Columbus, IoU     1551   0.606  0.34    0.601    0.563
+  cowc_512 test Potsdam, IoU      1665   0.892  0.62    0.886    0.786
+  COWC test Columbus, points      5750   0.674  0.05    0.481    0.651
+  COWC test Potsdam, points       5097   0.864  0.25    0.847    0.845
+  COWC test all, points          10847   0.756  0.10    0.682    0.756
+  VEDAI 15cm color, IoU           2033   0.877  0.53    0.872    0.734
+COWC test (test_data) {'Columbus color': 396, 'Potsdam color': 509}
+cowc_512 train {'Selwyn color': 538, 'Selwyn gray': 10, 'Toronto color': 650, 'Utah color': 1302}
+cowc_512 val {'Vaihingen gray': 268}
+
+[exited with code 0]

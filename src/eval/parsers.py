@@ -18,6 +18,9 @@ def parse_args():
     parser.add_argument("--test-dir", type=str, default="test_data")
     parser.add_argument("--conf", type=float, default=0.01, help="Low threshold strictly for ROC generation")
     parser.add_argument("--iou-thr", type=float, default=0.50)
+    parser.add_argument("--cowc-scoring", choices=["box", "point"], default="box",
+                        help="Match COWC predictions to the label boxes by IoU >= --iou-thr (box), "
+                             "or to the box centers within --dist-thr pixels (point; the pre-2026-11-23 behavior)")
     parser.add_argument("--dist-thr", type=float, default=25.0,
                         help="COWC point-match distance in pixels at 15cm GSD (scaled per variant to keep the ground distance fixed)")
     parser.add_argument("--imgsz", type=int, default=None,
@@ -31,6 +34,14 @@ def parse_args():
                              "or on the test data itself (test; optimistic, the pre-2026-11 behavior)")
     parser.add_argument("--val-data", type=str, default="data/cowc_512/dataset.yaml",
                         help="Ultralytics dataset.yaml whose 'val' split (15cm GSD) is used to calibrate thresholds")
+    parser.add_argument("--datasets", nargs="+", default=None,
+                        help="Only evaluate these datasets (e.g. VEDAI). Default: all in DATASET_VARIANTS")
+    parser.add_argument("--variants", nargs="+", default=None,
+                        help="Only evaluate these variants (e.g. 15cm_base). Default: all variants of each dataset")
+    parser.add_argument("--image-glob", type=str, default="*.*",
+                        help="Glob for image files inside each variant's images/ folder (e.g. '*_co.*' for VEDAI color only)")
+    parser.add_argument("--tag", type=str, default="",
+                        help="Suffix for the output folder, so subset runs don't overwrite full runs")
     return parser.parse_args()
 
 def parse_gsd_and_deg_type(variant_name):
@@ -58,7 +69,8 @@ def get_content_gsd(dataset, variant_name):
     if dataset == "Angel": return 50
     return parse_gsd_and_deg_type(variant_name)[0]
 
-def parse_label_file(label_path, is_cowc=False, is_vedai=False):
+def parse_label_file(label_path, is_cowc=False, is_vedai=False, cowc_boxes=False):
+    """COWC labels are "0 x1 y1 .. x4 y4" OBBs in pixels; returns their center points unless cowc_boxes is set."""
     gt_items = []
     if not os.path.exists(label_path):
         return gt_items
@@ -67,7 +79,12 @@ def parse_label_file(label_path, is_cowc=False, is_vedai=False):
             parts = line.strip().split()
             try:
                 if is_cowc:
-                    if len(parts) >= 3: gt_items.append([float(parts[1]), float(parts[2])])
+                    if len(parts) >= 9:
+                        polygon = [float(x) for x in parts[1:9]]
+                        gt_items.append(polygon if cowc_boxes else [sum(polygon[0::2]) / 4, sum(polygon[1::2]) / 4])
+                    elif cowc_boxes:
+                        raise RuntimeError(f"{label_path} has COWC center points, not boxes; rerun src/preprocess_rq1_datasets.py")
+                    elif len(parts) >= 3: gt_items.append([float(parts[1]), float(parts[2])])
                     elif len(parts) == 2: gt_items.append([float(parts[0]), float(parts[1])])
                 elif is_vedai:
                     if len(parts) >= 14:
