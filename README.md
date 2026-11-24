@@ -43,6 +43,7 @@ This is a work in progress. DETR is still in progress, but YOLO is set up and ru
 - [4. Run Model Training (via tmux)](#4-run-model-training-via-tmux)
 - [5. Run Testing Inference and Eval](#5-run-testing-inference-and-eval)
 - [6. Look at Predictions on Single Images](#6-look-at-predictions-on-single-images)
+- [7. Train on New Data](#7-train-on-new-data)
 
 ---
 
@@ -302,3 +303,67 @@ python src/inf_on_image.py --model models/weights/test_weights/YOLO11n_15GSD_640
 ```bash
 python src/viewer.py --model models/weights/test_weights/YOLO11n_15GSD_640.pt --test-dir test_data --train-imgsz 640
 ```
+
+---
+
+## 7. Train on New Data
+
+You can train YOLO on your own oriented-box data with the same `train.py`, by describing your data in a dataset file.
+
+### Step 7.1: Arrange the data
+Put the images and labels in this layout (any folder works; `data/` is a good place):
+```
+data/my_data/
+├── images/
+│   ├── train/   tile_001.png, tile_002.png, ...
+│   └── val/     tile_101.png, ...
+└── labels/
+    ├── train/   tile_001.txt, tile_002.txt, ...
+    └── val/     tile_101.txt, ...
+```
+* Each image needs a label file with the same name, ending in `.txt`. An image with no objects gets an empty `.txt` file.
+* Each line of a label file is one object: `<class_id> x1 y1 x2 y2 x3 y3 x4 y4`. The four points are the box corners, in order around the box. Each x is divided by the image width and each y by the image height, so all values are between 0 and 1. For example, `0 0.10 0.20 0.15 0.20 0.15 0.30 0.10 0.30` is a class-0 box near the top left. COWC's labels in `data/cowc_512/labels/` are an example of this format.
+* The validation images should be separate from the training images; around 10% of the data is common. The model is checked on them after every epoch, and the best epoch is saved as `best.pt`.
+* If your labels are in another format, convert them to this one first. `src/convert_coco.py` is an example of a converter.
+
+### Step 7.2: Make a dataset file
+Copy the template and edit the lines marked `EDIT`:
+```bash
+cp configs/template.yaml configs/my_data.yaml
+```
+* `path:` the data folder, `data/my_data`. Relative paths are from the repo root.
+* `train:` and `val:` the image folders inside it. Change them only if your folders have other names.
+* `names:` the class names, numbered from 0 in the same order as the class IDs in your labels.
+
+### Step 7.3: Train
+Train as in Step 4.2, with your dataset file:
+```bash
+NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --data configs/my_data.yaml --img_size 512 --gpus 0
+```
+Set `--img_size` to your images' size to train at their native resolution, or larger to enlarge them. If your images aren't square, Ultralytics resizes the longer side to `--img_size`. Then check the training curves as in Step 4.4. To start from a model you already trained instead of the pretrained `yolo11n-obb.pt`, add `--weights <best.pt>`.
+
+### Step 7.4: Machines without internet access
+Training itself doesn't need internet, but setting up the environment and the first run normally download files. Before moving to a machine without internet, collect these on a machine that has it:
+1. **The `yolo_env` environment.** `pip` and `conda` can't install packages offline. One option is `conda-pack`: on a machine with internet, run `conda install -n base -c conda-forge conda-pack`, then `conda pack -n yolo_env -o yolo_env.tar.gz`. Copy the archive over, then unpack and activate it:
+   ```bash
+   mkdir -p ~/envs/yolo_env && tar -xzf yolo_env.tar.gz -C ~/envs/yolo_env
+   source ~/envs/yolo_env/bin/activate
+   conda-unpack
+   ```
+   The new machine needs a similar Linux system and an NVIDIA driver that supports the CUDA version of the packed PyTorch (check with `python -c "import torch; print(torch.version.cuda)"` before packing).
+2. **`yolo11n-obb.pt`**, the pretrained starting weights. `train.py` downloads it to the repo root if it's missing. Copy it into the repo root on the new machine (it's gitignored, so it isn't in the repo).
+3. **`yolo26n.pt`** (optional). At the start of training, Ultralytics uses it for a quick GPU check. Without it, the check is skipped with a warning and training continues. Copy it into the repo root to avoid the warning.
+4. **`~/.config/Ultralytics/Arial.ttf`**, the font Ultralytics uses for its plots, downloaded the first time it draws them. Copy it to the same folder on the new machine.
+
+On the new machine, set this before running, so Ultralytics skips its online checks instead of waiting for them to time out:
+```bash
+export YOLO_OFFLINE=true
+```
+
+### Evaluating on new data
+`train.py`, `plot_training.py` and `inf_on_image.py` work with any data in this format. `yolo_eval.py` doesn't yet: it only knows the COWC, VEDAI and Angel test sets. To evaluate a new test set, you would need to:
+* add the dataset and its variants to `DATASET_VARIANTS` in `src/eval/config.py`,
+* make sure its labels can be read by `parse_label_file` in `src/eval/parsers.py`, either by converting them to the format it reads for Angel (one object per line, as the 8 pixel coordinates `x1 y1 x2 y2 x3 y3 x4 y4` with no class ID in front) or by adding a branch for the new format,
+* and, if the new data isn't at 15 cm GSD, update the GSD handling (`get_pixel_gsd` and `get_content_gsd` in `src/eval/parsers.py`, and the validation threshold calibration in `src/eval/calibration.py`, which assumes 15 cm validation data).
+
+For a quick check without those changes, `inf_on_image.py` (Step 6) shows the model's predictions on any image, and Ultralytics' own validation reports mAP on your `val` images: `yolo val task=obb model=<best.pt> data=configs/my_data.yaml imgsz=<size>`.
