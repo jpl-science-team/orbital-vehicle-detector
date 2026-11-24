@@ -8,7 +8,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Generate Comparative PowerPoint Plots (YOLO vs RT-DETR)")
     parser.add_argument("--yolo-csv", type=str, required=True, help="Path to YOLO rq1_summary_metrics.csv")
     parser.add_argument("--detr-csv", type=str, required=True, help="Path to RT-DETR rq1_summary_metrics.csv")
-    parser.add_argument("--yolo-name", type=str, default="YOLOv8n", help="Display name for YOLO model")
+    parser.add_argument("--yolo-name", type=str, default="YOLO11n", help="Display name for YOLO model")
     parser.add_argument("--detr-name", type=str, default="RT-DETR", help="Display name for RT-DETR model")
     parser.add_argument("--out-dir", type=str, default="Comparison_Plots", help="Output directory for generated plots")
     return parser.parse_args()

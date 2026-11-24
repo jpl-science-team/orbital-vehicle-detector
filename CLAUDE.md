@@ -17,7 +17,7 @@ There's no test suite, linter or build step. All scripts use paths relative to t
 
 ```bash
 # YOLO training (yolo_env)
-NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 640 --batch_size 16 --epochs 150 --data data/cowc_512/dataset.yaml --gpus 2,3
+NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 python src/train.py --img_size 640 --batch_size 16 --epochs 150 --data configs/cowc_512.yaml --gpus 2,3
 
 # O2-RT-DETR training on 4 GPUs (detr_env)
 NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 bash O2-RT-DETR/tools/dist_train.sh O2-RT-DETR/projects/rotated_rtdetr/configs/cowc_rtdetr_512.py 4
@@ -26,11 +26,11 @@ NCCL_P2P_DISABLE=1 NCCL_IB_DISABLE=1 bash O2-RT-DETR/tools/dist_train.sh O2-RT-D
 python src/plot_training.py runs/obb/runs/detect/<run_name>
 
 # Build the degraded-GSD test sandbox: data/ (read-only) -> test_data/
-python src/preprocess_rq1_datasets.py
+python src/preprocess_rq1_datasets.py --raw-dir data --cowc-refined-dir ../label-refiner/datasets_refined/COWC_512/test --out-dir test_data
 
-# RQ1 evaluation (default weights: models/weights/test_weights/YOLO11n_15GSD.pt)
-python src/yolo_eval.py --models <a.pt> [<b.pt> ...] --train-imgsz 640   # must match train.py --img_size
-python src/detr_eval.py --config <cfg.py> --models <ckpt.pth>
+# RQ1 evaluation (--models, --test-dir, --val-data, --train-imgsz required)
+python src/yolo_eval.py --models <a.pt> [<b.pt> ...] --test-dir test_data --val-data configs/cowc_512.yaml --train-imgsz 640   # must match train.py --img_size
+python src/detr_eval.py --config <cfg.py> --models <ckpt.pth> --test-dir test_data
 
 # YOLO vs RT-DETR comparison plots -> Comparison_Plots/
 python src/compare_models.py --yolo-csv Eval_Results_YOLO_<name>/rq1_summary_metrics.csv --detr-csv Eval_Results_RTDETR_<name>/rq1_summary_metrics.csv
@@ -40,7 +40,7 @@ Run training inside `tmux`, because jobs can take hours or days.
 
 ## Architecture
 
-**Data layout (gitignored):** `data/` holds the raw datasets and must be treated as read-only. `data/cowc_512/dataset.yaml` has to contain an absolute path that matches the local machine. The DETR configs read DOTA-format data from `data/cowc_512_degraded_dota/{train,val}/annfiles/`. `test_data/<Dataset>/<variant>/{images,labels}` is the evaluation sandbox. `preprocess_rq1_datasets.py` also reads `../label-refiner/` for COWC, so that repo has to be checked out next to this one. `models/`, `runs/` and `*.pt` are also gitignored. YOLO training runs land in `runs/obb/runs/detect/<timestamp>_yolo11n_res<imgsz>/` (Ultralytics prefixes `runs/obb/` to `project="runs/detect"` for OBB models).
+**Data layout (gitignored):** `data/` holds the raw datasets and must be treated as read-only. `data/cowc_512/` has `images/` and `labels/` with `train`/`val`/`test` splits. The committed `configs/cowc_512.yaml` describes it with a path relative to the repo root (so no per-machine edit); it is `train.py --data`, and `yolo_eval.py --val-data` reads its `val` split through Ultralytics' `check_det_dataset`/`img2label_paths` so it resolves exactly as in training. The DETR configs read DOTA-format data from `data/cowc_512_degraded_dota/{train,val}/annfiles/`. `test_data/<Dataset>/<variant>/{images,labels}` is the evaluation sandbox. `preprocess_rq1_datasets.py` also reads `../label-refiner/` for COWC, so that repo has to be checked out next to this one. `models/`, `runs/` and `*.pt` are also gitignored. YOLO training runs land in `runs/obb/runs/detect/<timestamp>_yolo11n_res<imgsz>/` (Ultralytics prefixes `runs/obb/` to `project="runs/detect"` for OBB models).
 
 **GSD variants:** `src/eval/config.py::DATASET_VARIANTS` is the single source of truth for which variants exist (COWC/VEDAI: `15cm_base`, `30cm_{naive,scalenorm}`, `60cm_{naive,scalenorm}`; Angel: `50cm_base`, `30cm_upscale`, `15cm_upscale`). `preprocess_rq1_datasets.py` generates them, and `eval/parsers.py::parse_gsd_and_deg_type` turns variant names back into a GSD and degradation type. If you add a variant, keep all three in sync.
 

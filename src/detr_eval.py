@@ -13,7 +13,7 @@ from functools import partial
 
 # Import directly from your modular eval package
 from eval.config import DATASET_VARIANTS
-from eval.parsers import parse_label_file, parse_gsd_and_deg_type
+from eval.parsers import parse_label_file, parse_gsd_and_deg_type, get_pixel_gsd, cowc_dir_name
 from eval.metrics import (
     filter_ignored_predictions, 
     match_cowc_points, 
@@ -150,13 +150,20 @@ torch.load = partial(torch.load, weights_only=False)
 # ---------------------------------------------------------
 def parse_args():
     parser = argparse.ArgumentParser(description="RQ1 Resolution Evaluator - RT-DETR")
-    parser.add_argument("--config", type=str, default="runs/20260715_rtdetr_obb_512/cowc_rtdetr_512.py", help="Path to MMDetection config file (.py)")
-    parser.add_argument("--models", nargs="+", default=["runs/20260715_rtdetr_obb_512/best_dota_mAP_epoch_27.pth"], help="Path(s) to PyTorch model weights (.pth)")
-    parser.add_argument("--test-dir", type=str, default="test_data", help="Sandbox test data directory")
+    parser.add_argument("--config", type=str, required=True, help="Path to MMDetection config file (.py)")
+    parser.add_argument("--models", nargs="+", required=True, help="Path(s) to PyTorch model weights (.pth)")
+    parser.add_argument("--test-dir", type=str, required=True, help="Test data folder from README Step 5.1 (e.g. test_data)")
     
     parser.add_argument("--conf", type=float, default=0.01, help="Confidence threshold (lowered for ROC generation)")
     parser.add_argument("--iou-thr", type=float, default=0.50, help="IoU threshold for polygon datasets")
-    parser.add_argument("--dist-thr", type=float, default=25.0, help="Max pixel distance for COWC point matching")
+    parser.add_argument("--cowc-scoring", choices=["box", "point"], default="box",
+                        help="Match COWC predictions to the label boxes by IoU >= --iou-thr (box), "
+                             "or to the box centers within --dist-thr pixels (point)")
+    parser.add_argument("--dist-thr", type=float, default=25.0,
+                        help="COWC point-match distance in pixels at 15cm GSD (scaled per variant to keep the ground distance fixed)")
+    parser.add_argument("--cowc-dir", type=str, default=None,
+                        help="COWC folder name under --test-dir. Default: COWC (label-refiner boxes) for box scoring, "
+                             "COWC_point (test_data.zip center points) for point scoring")
     parser.add_argument("--device", type=str, default="cuda:0", help="Device to run inference on")
     return parser.parse_args()
 
@@ -220,22 +227,26 @@ def main():
 
         for ds, variants in DATASET_VARIANTS.items():
             is_cowc = (ds == "COWC")
+            cowc_points = is_cowc and args.cowc_scoring == "point"
             is_vedai = (ds == "VEDAI")
-            print(f"\n--- DATASET: {ds} ---")
+            ds_dir = test_data_dir / (cowc_dir_name(args) if is_cowc else ds)
+            print(f"\n--- DATASET: {ds} ({ds_dir}) ---")
             
             for deg in variants:
-                img_dir, lbl_dir = test_data_dir / ds / deg / "images", test_data_dir / ds / deg / "labels"
+                img_dir, lbl_dir = ds_dir / deg / "images", ds_dir / deg / "labels"
                 img_paths = sorted(glob.glob(str(img_dir / "*.png")) + glob.glob(str(img_dir / "*.tif")) + glob.glob(str(img_dir / "*.jpg")))
                 if not img_paths: 
-                    print(f"  [WARNING] No images found in {img_dir}")
+                    print(f"  [WARNING] No images found in {img_dir}; skipping. See README Step 5.1")
                     continue
 
                 total_gts = 0
+                # --dist-thr is defined at 15cm GSD; rescale so the threshold covers the same ground distance
+                dist_thr_px = args.dist_thr * 15.0 / get_pixel_gsd(deg)
                 all_ious, all_distances, frame_evaluations = [], [], []
 
                 for img_p in img_paths:
                     stem = Path(img_p).stem
-                    gt_items = parse_label_file(lbl_dir / f"{stem}.txt", is_cowc=is_cowc, is_vedai=is_vedai)
+                    gt_items = parse_label_file(lbl_dir / f"{stem}.txt", is_cowc=is_cowc, is_vedai=is_vedai, cowc_boxes=not cowc_points)
                     total_gts += len([gt for gt in gt_items if not isinstance(gt, dict) or gt.get('class') == 0])
 
                     # 3. Inference via MMDetection
@@ -252,8 +263,8 @@ def main():
                     pred_polys = [obb_to_poly(b) for b in boxes_obb]
 
                     # 6. Modular Matching Engine
-                    if is_cowc:
-                        tps, fps, fns, match_dists = match_cowc_points(pred_polys, scores, gt_items, max_dist=args.dist_thr)
+                    if cowc_points:
+                        tps, fps, fns, match_dists = match_cowc_points(pred_polys, scores, gt_items, max_dist=dist_thr_px)
                         all_distances.extend(match_dists)
                     elif is_vedai:
                         v_preds, v_gts = filter_ignored_predictions(pred_polys, scores, gt_items, iou_threshold=args.iou_thr)
@@ -319,12 +330,12 @@ def main():
                     for idx, frame in enumerate(sorted_frames[:2], 1):
                         raw_img = cv2.imread(frame["img_path"])
                         if raw_img is not None:
-                            vis = draw_annotations(raw_img, frame["opt_tps"], frame["opt_fps"], frame["opt_fns"], is_cowc)
+                            vis = draw_annotations(raw_img, frame["opt_tps"], frame["opt_fps"], frame["opt_fns"], cowc_points)
                             cv2.imwrite(str(deg_qual_dir / f"best_{idx}_{frame['stem']}.png"), vis)
                     for idx, frame in enumerate(sorted_frames[-2:], 1):
                         raw_img = cv2.imread(frame["img_path"])
                         if raw_img is not None:
-                            vis = draw_annotations(raw_img, frame["opt_tps"], frame["opt_fps"], frame["opt_fns"], is_cowc)
+                            vis = draw_annotations(raw_img, frame["opt_tps"], frame["opt_fps"], frame["opt_fns"], cowc_points)
                             cv2.imwrite(str(deg_qual_dir / f"worst_{idx}_{frame['stem']}.png"), vis)
 
         df_results = pd.DataFrame(summary_records)

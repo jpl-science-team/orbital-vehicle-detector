@@ -5,17 +5,10 @@ import argparse
 def parse_args():
     parser = argparse.ArgumentParser(description="RQ1 Resolution Scaling Evaluator - YOLO")
     
-    # Changed to --models with nargs="+" to accept multiple paths
-    parser.add_argument("--models", nargs="+", 
-                        default=[
-                            "models/weights/test_weights/YOLO11n_15GSD.pt",
-                            # Add more model paths here to evaluate them in batch:
-                            # "models/weights/test_weights/YOLO11s_MultiScale.pt",
-                            # "models/weights/test_weights/YOLO11m_FocalLoss.pt"
-                        ], 
-                        help="List of model paths to evaluate")
-                        
-    parser.add_argument("--test-dir", type=str, default="test_data")
+    parser.add_argument("--models", nargs="+", required=True,
+                        help="One or more YOLO .pt weights to evaluate, all trained at --train-imgsz")
+    parser.add_argument("--test-dir", type=str, required=True,
+                        help="Test data folder from README Step 5.1 (e.g. test_data)")
     parser.add_argument("--conf", type=float, default=0.01, help="Low threshold strictly for ROC generation")
     parser.add_argument("--iou-thr", type=float, default=0.50)
     parser.add_argument("--cowc-scoring", choices=["box", "point"], default="box",
@@ -23,23 +16,29 @@ def parse_args():
                              "or to the box centers within --dist-thr pixels (point; the pre-2026-11-23 behavior)")
     parser.add_argument("--dist-thr", type=float, default=25.0,
                         help="COWC point-match distance in pixels at 15cm GSD (scaled per variant to keep the ground distance fixed)")
+    parser.add_argument("--cowc-dir", type=str, default=None,
+                        help="COWC folder name under --test-dir. Default: COWC (label-refiner boxes) for box scoring, "
+                             "COWC_point (test_data.zip center points) for point scoring")
     parser.add_argument("--imgsz", type=int, default=None,
                         help="Fixed inference size for every image (overrides --train-imgsz scaling)")
-    parser.add_argument("--train-imgsz", type=int, default=512,
-                        help="imgsz the model was trained at; each image is enlarged by train-imgsz/train-tile-size at inference")
+    parser.add_argument("--train-imgsz", type=int, required=True,
+                        help="--img_size the model was trained at (train.py); each image is enlarged by train-imgsz/train-tile-size at inference")
     parser.add_argument("--train-tile-size", type=int, default=512,
                         help="Size of the training tiles (cowc_512 = 512)")
     parser.add_argument("--threshold-source", choices=["val", "test"], default="val",
                         help="Pick each variant's F1 confidence threshold on matching degraded copies of the validation set (val), "
                              "or on the test data itself (test; optimistic, the pre-2026-11 behavior)")
-    parser.add_argument("--val-data", type=str, default="data/cowc_512/dataset.yaml",
-                        help="Ultralytics dataset.yaml whose 'val' split (15cm GSD) is used to calibrate thresholds")
+    parser.add_argument("--val-data", type=str, required=True,
+                        help="Ultralytics dataset YAML the model was trained with (train.py --data, e.g. configs/cowc_512.yaml); "
+                             "its 'val' split (15cm GSD) is used to calibrate thresholds. Unused with --threshold-source test")
     parser.add_argument("--datasets", nargs="+", default=None,
                         help="Only evaluate these datasets (e.g. VEDAI). Default: all in DATASET_VARIANTS")
     parser.add_argument("--variants", nargs="+", default=None,
                         help="Only evaluate these variants (e.g. 15cm_base). Default: all variants of each dataset")
     parser.add_argument("--image-glob", type=str, default="*.*",
                         help="Glob for image files inside each variant's images/ folder (e.g. '*_co.*' for VEDAI color only)")
+    parser.add_argument("--out-dir", type=str, default=".",
+                        help="Folder to write results to; each model gets its own Eval_Results_YOLO_<model_name>[_<tag>]/ inside it")
     parser.add_argument("--tag", type=str, default="",
                         help="Suffix for the output folder, so subset runs don't overwrite full runs")
     return parser.parse_args()
@@ -68,6 +67,10 @@ def get_content_gsd(dataset, variant_name):
     """GSD (cm/px) of the image content, before any resampling back up. Angel is natively 50cm, so its upscale variants keep 50cm content."""
     if dataset == "Angel": return 50
     return parse_gsd_and_deg_type(variant_name)[0]
+
+def cowc_dir_name(args):
+    """Box labels live in test_data/COWC, the test_data.zip center points in test_data/COWC_point."""
+    return args.cowc_dir or ("COWC_point" if args.cowc_scoring == "point" else "COWC")
 
 def parse_label_file(label_path, is_cowc=False, is_vedai=False, cowc_boxes=False):
     """COWC labels are "0 x1 y1 .. x4 y4" OBBs in pixels; returns their center points unless cowc_boxes is set."""

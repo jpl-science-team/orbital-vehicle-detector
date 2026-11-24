@@ -9,7 +9,8 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-import yaml
+
+from ultralytics.data.utils import check_det_dataset, img2label_paths
 
 from eval.metrics import match_polygons, find_best_f1_threshold
 
@@ -24,11 +25,11 @@ def compute_eval_imgsz(h_img, w_img, args):
 
 
 def load_val_split(dataset_yaml):
-    """Returns [(image_path, [8-coord pixel polygons])] for the 'val' split of an Ultralytics OBB dataset.yaml."""
-    with open(dataset_yaml) as f:
-        cfg = yaml.safe_load(f)
-    img_dir = Path(cfg["path"]) / cfg["val"]
-    lbl_dir = Path(cfg["path"]) / cfg["val"].replace("images", "labels", 1)  # Ultralytics images/ -> labels/ convention
+    """Returns [(image, [8-coord pixel polygons])] for the 'val' split of an Ultralytics OBB dataset YAML (the train.py --data)."""
+    # Resolve the YAML and find labels exactly as Ultralytics training does (images/ -> labels/ convention)
+    img_dir = Path(check_det_dataset(dataset_yaml, autodownload=False)["val"])
+    if not img_dir.is_dir():
+        raise FileNotFoundError(f"Validation images {img_dir} (from {dataset_yaml}) not found")
 
     samples = []
     for img_p in sorted(glob.glob(str(img_dir / "*.*"))):
@@ -37,7 +38,7 @@ def load_val_split(dataset_yaml):
         if img is None: continue
         h, w = img.shape[:2]
         polys = []
-        lbl_p = lbl_dir / f"{Path(img_p).stem}.txt"
+        lbl_p = Path(img2label_paths([img_p])[0])
         if lbl_p.exists():
             with open(lbl_p) as f:
                 for line in f:

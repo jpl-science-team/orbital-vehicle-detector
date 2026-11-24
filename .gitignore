@@ -196,3 +196,8 @@ vehicle_detector.zip
 models/
 test_data/
 test_data.zip
+# OS and editor files
+.DS_Store
+*.swp
+predictions_drawn.jpg
+Isub_u181_v6141_1536x1536.tif

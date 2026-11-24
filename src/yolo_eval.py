@@ -8,7 +8,7 @@ from pathlib import Path
 from ultralytics import YOLO
 
 from eval.config import DATASET_VARIANTS
-from eval.parsers import parse_args, parse_label_file, parse_gsd_and_deg_type, get_pixel_gsd, get_content_gsd
+from eval.parsers import parse_args, parse_label_file, cowc_dir_name, parse_gsd_and_deg_type, get_pixel_gsd, get_content_gsd
 from eval.metrics import filter_ignored_predictions, match_cowc_points, match_polygons, get_peak_metrics_and_roc, get_poly_area
 from eval.calibration import ValThresholdCalibrator, compute_eval_imgsz
 from eval.visualization import draw_annotations, generate_powerpoint_plots, generate_extended_plots
@@ -25,8 +25,8 @@ def main():
             continue
             
         model_name = model_path.stem
-        output_dir = Path(f"Eval_Results_YOLO_{model_name}" + (f"_{args.tag}" if args.tag else ""))
-        output_dir.mkdir(exist_ok=True)
+        output_dir = Path(args.out_dir) / (f"Eval_Results_YOLO_{model_name}" + (f"_{args.tag}" if args.tag else ""))
+        output_dir.mkdir(parents=True, exist_ok=True)
         qual_dir = output_dir / "qualitative"
         qual_dir.mkdir(exist_ok=True)
 
@@ -45,11 +45,15 @@ def main():
             is_cowc = (ds == "COWC")
             cowc_points = is_cowc and args.cowc_scoring == "point"
             is_vedai = (ds == "VEDAI")
-            print(f"\n--- DATASET: {ds} ---")
+            ds_dir = Path(args.test_dir) / (cowc_dir_name(args) if is_cowc else ds)
+            print(f"\n--- DATASET: {ds} ({ds_dir}) ---")
             
             for deg in variants:
-                img_paths = sorted(glob.glob(str(Path(args.test_dir) / ds / deg / "images" / args.image_glob)))
-                lbl_dir = Path(args.test_dir) / ds / deg / "labels"
+                img_paths = sorted(glob.glob(str(ds_dir / deg / "images" / args.image_glob)))
+                lbl_dir = ds_dir / deg / "labels"
+                if not img_paths:
+                    print(f"  [WARNING] No images found in {ds_dir / deg / 'images'} (glob {args.image_glob}); skipping. See README Step 5.1")
+                    continue
                 total_gts = 0
                 # --dist-thr is defined at 15cm GSD; rescale so the threshold covers the same ground distance
                 dist_thr_px = args.dist_thr * 15.0 / get_pixel_gsd(deg)

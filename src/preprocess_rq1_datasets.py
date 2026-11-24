@@ -1,4 +1,5 @@
 import os
+import argparse
 import cv2
 import numpy as np
 from pathlib import Path
@@ -6,10 +7,8 @@ from pathlib import Path
 # ---------------------------------------------------------
 # PATH CONFIGURATION
 # ---------------------------------------------------------
-RAW_DATA_DIR = Path("data")       # STRICTLY READ-ONLY
-SANDBOX_DIR = Path("test_data")   # ALL EXPERIMENTAL OUTPUTS SAVED HERE
-# COWC test tiles with SAM-refined OBB labels from the label-refiner repo (STRICTLY READ-ONLY)
-COWC_REFINED_DIR = Path("../label-refiner/datasets_refined/COWC_512/test")
+# Set from the command line in parse_args(): --raw-dir and --cowc-refined-dir are STRICTLY READ-ONLY,
+# all outputs go to --out-dir
 
 VALID_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 
@@ -227,7 +226,23 @@ def build_degradation_variants(img, targets, native_gsd):
 # ---------------------------------------------------------
 # MAIN PIPELINE
 # ---------------------------------------------------------
-def run_preprocessing():
+def parse_args():
+    parser = argparse.ArgumentParser(description="Build the degraded-GSD RQ1 test data (README Step 5.1b)")
+    parser.add_argument("--raw-dir", type=str, required=True,
+                        help="Read-only raw data folder; VEDAI and Angel are read from <raw-dir>/VEDAI and <raw-dir>/Angel "
+                             "if present (e.g. data)")
+    parser.add_argument("--cowc-refined-dir", type=str, required=True,
+                        help="Read-only label-refiner COWC test split with images/ and labels/ "
+                             "(e.g. ../label-refiner/datasets_refined/COWC_512/test)")
+    parser.add_argument("--out-dir", type=str, required=True,
+                        help="Test data folder to write, passed to the evaluators as --test-dir (e.g. test_data)")
+    return parser.parse_args()
+
+def run_preprocessing(args):
+    RAW_DATA_DIR = Path(args.raw_dir)
+    SANDBOX_DIR = Path(args.out_dir)
+    COWC_REFINED_DIR = Path(args.cowc_refined_dir)
+
     print("==================================================")
     print(" UNIFIED TEST DATA PREPROCESSING PIPELINE")
     print("==================================================")
@@ -264,7 +279,7 @@ def run_preprocessing():
     print(f"Processing COWC Dataset ({len(cowc_imgs)} images from {cowc_base} - Native 15cm OBBs)...")
     if not cowc_imgs:
         print(f"[WARNING] No COWC images found in {cowc_base.resolve()}. Check out the label-refiner repo next to this one "
-              f"(see README Step 5.1, Option B); skipping COWC.")
+              f"(see README Step 5.1b); skipping COWC.")
     
     for img_p in cowc_imgs:
         stem = Path(img_p).stem
@@ -324,4 +339,4 @@ def run_preprocessing():
     print("==================================================")
 
 if __name__ == "__main__":
-    run_preprocessing()
+    run_preprocessing(parse_args())
