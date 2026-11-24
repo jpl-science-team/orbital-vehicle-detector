@@ -196,3 +196,6 @@ vehicle_detector.zip
 models/
 test_data/
 test_data.zip
+# OS and editor files
+.DS_Store
+*.swp

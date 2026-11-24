@@ -51,6 +51,9 @@ def main():
             for deg in variants:
                 img_paths = sorted(glob.glob(str(ds_dir / deg / "images" / args.image_glob)))
                 lbl_dir = ds_dir / deg / "labels"
+                if not img_paths:
+                    print(f"  [WARNING] No images found in {ds_dir / deg / 'images'} (glob {args.image_glob}); skipping. See README Step 5.1")
+                    continue
                 total_gts = 0
                 # --dist-thr is defined at 15cm GSD; rescale so the threshold covers the same ground distance
                 dist_thr_px = args.dist_thr * 15.0 / get_pixel_gsd(deg)

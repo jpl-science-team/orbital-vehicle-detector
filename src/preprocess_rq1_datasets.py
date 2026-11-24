@@ -264,7 +264,7 @@ def run_preprocessing():
     print(f"Processing COWC Dataset ({len(cowc_imgs)} images from {cowc_base} - Native 15cm OBBs)...")
     if not cowc_imgs:
         print(f"[WARNING] No COWC images found in {cowc_base.resolve()}. Check out the label-refiner repo next to this one "
-              f"(see README Step 5.1, Option B); skipping COWC.")
+              f"(see README Step 5.1b); skipping COWC.")
     
     for img_p in cowc_imgs:
         stem = Path(img_p).stem

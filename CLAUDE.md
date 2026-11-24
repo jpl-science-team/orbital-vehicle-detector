@@ -28,9 +28,9 @@ python src/plot_training.py runs/obb/runs/detect/<run_name>
 # Build the degraded-GSD test sandbox: data/ (read-only) -> test_data/
 python src/preprocess_rq1_datasets.py
 
-# RQ1 evaluation (default weights: models/weights/test_weights/YOLO11n_15GSD.pt)
-python src/yolo_eval.py --models <a.pt> [<b.pt> ...] --train-imgsz 640   # must match train.py --img_size
-python src/detr_eval.py --config <cfg.py> --models <ckpt.pth>
+# RQ1 evaluation (--models, --test-dir, --val-data, --train-imgsz required)
+python src/yolo_eval.py --models <a.pt> [<b.pt> ...] --test-dir test_data --val-data data/cowc_512/dataset.yaml --train-imgsz 640   # must match train.py --img_size
+python src/detr_eval.py --config <cfg.py> --models <ckpt.pth> --test-dir test_data
 
 # YOLO vs RT-DETR comparison plots -> Comparison_Plots/
 python src/compare_models.py --yolo-csv Eval_Results_YOLO_<name>/rq1_summary_metrics.csv --detr-csv Eval_Results_RTDETR_<name>/rq1_summary_metrics.csv

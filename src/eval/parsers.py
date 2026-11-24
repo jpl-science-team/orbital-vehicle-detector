@@ -5,17 +5,10 @@ import argparse
 def parse_args():
     parser = argparse.ArgumentParser(description="RQ1 Resolution Scaling Evaluator - YOLO")
     
-    # Changed to --models with nargs="+" to accept multiple paths
-    parser.add_argument("--models", nargs="+", 
-                        default=[
-                            "models/weights/test_weights/YOLO11n_15GSD.pt",
-                            # Add more model paths here to evaluate them in batch:
-                            # "models/weights/test_weights/YOLO11s_MultiScale.pt",
-                            # "models/weights/test_weights/YOLO11m_FocalLoss.pt"
-                        ], 
-                        help="List of model paths to evaluate")
-                        
-    parser.add_argument("--test-dir", type=str, default="test_data")
+    parser.add_argument("--models", nargs="+", required=True,
+                        help="One or more YOLO .pt weights to evaluate, all trained at --train-imgsz")
+    parser.add_argument("--test-dir", type=str, required=True,
+                        help="Test data folder from README Step 5.1 (e.g. test_data)")
     parser.add_argument("--conf", type=float, default=0.01, help="Low threshold strictly for ROC generation")
     parser.add_argument("--iou-thr", type=float, default=0.50)
     parser.add_argument("--cowc-scoring", choices=["box", "point"], default="box",
@@ -28,15 +21,16 @@ def parse_args():
                              "COWC_point (test_data.zip center points) for point scoring")
     parser.add_argument("--imgsz", type=int, default=None,
                         help="Fixed inference size for every image (overrides --train-imgsz scaling)")
-    parser.add_argument("--train-imgsz", type=int, default=512,
-                        help="imgsz the model was trained at; each image is enlarged by train-imgsz/train-tile-size at inference")
+    parser.add_argument("--train-imgsz", type=int, required=True,
+                        help="--img_size the model was trained at (train.py); each image is enlarged by train-imgsz/train-tile-size at inference")
     parser.add_argument("--train-tile-size", type=int, default=512,
                         help="Size of the training tiles (cowc_512 = 512)")
     parser.add_argument("--threshold-source", choices=["val", "test"], default="val",
                         help="Pick each variant's F1 confidence threshold on matching degraded copies of the validation set (val), "
                              "or on the test data itself (test; optimistic, the pre-2026-11 behavior)")
-    parser.add_argument("--val-data", type=str, default="data/cowc_512/dataset.yaml",
-                        help="Ultralytics dataset.yaml whose 'val' split (15cm GSD) is used to calibrate thresholds")
+    parser.add_argument("--val-data", type=str, required=True,
+                        help="Ultralytics dataset.yaml whose 'val' split (15cm GSD) is used to calibrate thresholds "
+                             "(e.g. data/cowc_512/dataset.yaml); unused with --threshold-source test")
     parser.add_argument("--datasets", nargs="+", default=None,
                         help="Only evaluate these datasets (e.g. VEDAI). Default: all in DATASET_VARIANTS")
     parser.add_argument("--variants", nargs="+", default=None,

@@ -6,11 +6,11 @@ from ultralytics import YOLO
 
 def parse_args():
     parser = argparse.ArgumentParser(description="COWC OBB Resolution Study Training Script")
-    parser.add_argument("--img_size", type=int, default=512, help="Input image resolution size")
+    parser.add_argument("--img_size", type=int, required=True, help="Input image resolution size (e.g. 512 or 640)")
     parser.add_argument("--batch_size", type=int, default=16, help="Training batch size")
     parser.add_argument("--epochs", type=int, default=150, help="Number of training epochs")
-    parser.add_argument("--data", type=str, default="data/cowc_512/dataset.yaml", help="Path to dataset.yaml")
-    parser.add_argument("--gpus", type=str, default="2,3", help="GPU IDs to use (e.g., '2,3')")
+    parser.add_argument("--data", type=str, required=True, help="Path to dataset.yaml (e.g. data/cowc_512/dataset.yaml)")
+    parser.add_argument("--gpus", type=str, required=True, help="GPU IDs to use (e.g., '2,3'); check nvidia-smi for free ones")
     parser.add_argument("--workers", type=int, default=4, help="Number of data loader workers")
     return parser.parse_args()
 
