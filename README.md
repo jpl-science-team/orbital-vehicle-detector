@@ -240,6 +240,8 @@ cp runs/obb/runs/detect/<run_name>/weights/best.pt models/weights/test_weights/Y
 ```
 Results are written to `Eval_Results_YOLO_<model_name>/` (e.g. `Eval_Results_YOLO_YOLO11n_15GSD_640/`), so reusing a name overwrites earlier results.
 
+**No trained model yet?** Some pretrained weights are included in `vehicle_detector.zip` in the Google Drive data folder (the same link as in Step 2). You can use them to try the evaluation without training first. Copy them into `models/weights/test_weights/` as above, and pass the `--train-imgsz` they were trained at in Step 5.3.
+
 ### Step 5.3: Run the evaluation
 Four inputs are required:
 * `--models`: the weights from Step 5.2 (you can list several, if they were all trained at the same size).
