@@ -294,7 +294,7 @@ python src/compare_models.py --yolo-csv Eval_Results_YOLO_<name>/rq1_summary_met
 
 These scripts are for looking at a model's predictions, not for scoring. Run them from the repo root in `yolo_env`.
 
-**One image:** `inf_on_image.py` runs a YOLO model on one image and saves a copy with the predicted boxes drawn (no labels or scores). Boxes below `--conf` (default 0.4) aren't drawn.
+**One image:** `inf_on_image.py` runs a YOLO model on one image and saves a copy with the predicted boxes drawn, each class in its own color and labeled with its class name (no confidence scores). Add `--no-names` to draw the boxes only. Boxes below `--conf` (default 0.4) aren't drawn.
 ```bash
 python src/inf_on_image.py --model models/weights/test_weights/YOLO11n_15GSD_640.pt --image test_data/COWC/15cm_base/images/Potsdam_ISPRS_top_potsdam_2_13_RGB_patch_512_1280.png --out predictions_drawn.jpg
 ```
@@ -316,14 +316,20 @@ Put the images and labels in this layout (any folder works; `data/` is a good pl
 data/my_data/
 ├── images/
 │   ├── train/   tile_001.png, tile_002.png, ...
-│   └── val/     tile_101.png, ...
+│   ├── val/     tile_101.png, ...
+│   └── test/    tile_201.png, ...
 └── labels/
     ├── train/   tile_001.txt, tile_002.txt, ...
-    └── val/     tile_101.txt, ...
+    ├── val/     tile_101.txt, ...
+    └── test/    tile_201.txt, ...
 ```
 * Each image needs a label file with the same name, ending in `.txt`. An image with no objects gets an empty `.txt` file.
 * Each line of a label file is one object: `<class_id> x1 y1 x2 y2 x3 y3 x4 y4`. The four points are the box corners, in order around the box. Each x is divided by the image width and each y by the image height, so all values are between 0 and 1. For example, `0 0.10 0.20 0.15 0.20 0.15 0.30 0.10 0.30` is a class-0 box near the top left. COWC's labels in `data/cowc_512/labels/` are an example of this format.
-* The validation images should be separate from the training images; around 10% of the data is common. The model is checked on them after every epoch, and the best epoch is saved as `best.pt`.
+* `class_id` is the class number, from 0. With several classes (e.g. 0 = car, 1 = truck), use the same numbers in every label file and list the names in that order in Step 7.2.
+* Keep three separate sets of images; around 80% train, 10% val and 10% test is common.
+  * `train`: the model learns from these.
+  * `val`: the model is checked on these after every epoch, and the best epoch is saved as `best.pt`. The evaluation (Step 7.5) also uses them to pick each class's confidence threshold.
+  * `test`: used only for the final scores in Step 7.5, never in training.
 * If your labels are in another format, convert them to this one first. `src/convert_coco.py` is an example of a converter.
 
 ### Step 7.2: Make a dataset file
@@ -332,7 +338,7 @@ Copy the template and edit the lines marked `EDIT`:
 cp configs/template.yaml configs/my_data.yaml
 ```
 * `path:` the data folder, `data/my_data`. Relative paths are from the repo root.
-* `train:` and `val:` the image folders inside it. Change them only if your folders have other names.
+* `train:`, `val:` and `test:` the image folders inside it. Change them only if your folders have other names.
 * `names:` the class names, numbered from 0 in the same order as the class IDs in your labels.
 
 ### Step 7.3: Train
@@ -360,10 +366,21 @@ On the new machine, set this before running, so Ultralytics skips its online che
 export YOLO_OFFLINE=true
 ```
 
-### Evaluating on new data
-`train.py`, `plot_training.py` and `inf_on_image.py` work with any data in this format. `yolo_eval.py` doesn't yet: it only knows the COWC, VEDAI and Angel test sets. To evaluate a new test set, you would need to:
-* add the dataset and its variants to `DATASET_VARIANTS` in `src/eval/config.py`,
-* make sure its labels can be read by `parse_label_file` in `src/eval/parsers.py`, either by converting them to the format it reads for Angel (one object per line, as the 8 pixel coordinates `x1 y1 x2 y2 x3 y3 x4 y4` with no class ID in front) or by adding a branch for the new format,
-* and, if the new data isn't at 15 cm GSD, update the GSD handling (`get_pixel_gsd` and `get_content_gsd` in `src/eval/parsers.py`, and the validation threshold calibration in `src/eval/calibration.py`, which assumes 15 cm validation data).
+### Step 7.5: Evaluate on the test set
+`yolo_eval_dataset.py` scores a model on the `test` images of the same dataset file, at the images' native resolution:
+```bash
+python src/yolo_eval_dataset.py --models runs/obb/runs/detect/<run_name>/weights/best.pt --data configs/my_data.yaml --imgsz 512
+```
+* `--models` is the trained weights (you can list several, if they were all trained at the same size).
+* `--data` is the dataset file from Step 7.2, which needs `val` and `test` splits.
+* `--imgsz` is the `--img_size` from Step 7.3.
 
-For a quick check without those changes, `inf_on_image.py` (Step 6) shows the model's predictions on any image, and Ultralytics' own validation reports mAP on your `val` images: `yolo val task=obb model=<best.pt> data=configs/my_data.yaml imgsz=<size>`.
+How it scores:
+* Each class is scored separately. A prediction counts as correct if it has the same class as a labeled box and overlaps it with IoU >= `--iou-thr` (default 0.5). A box with the right location but the wrong class counts as both a false detection and a missed box.
+* The model gives each prediction a confidence score, and only predictions above a threshold are counted. Each class gets its own threshold: the one with the best F1 on the `val` images, so the test scores aren't tuned on the test data. With `--threshold-source test`, the thresholds are picked on the test images instead, which gives optimistic scores.
+
+It writes `Eval_Results_YOLO_<model>_<dataset file>/`, containing:
+* `summary_metrics.csv` and `SUMMARY.md`: one row per class (labeled boxes, threshold, TP/FP/FN, precision, recall, F1, mAP50, mean IoU), plus an `all` row. For `all`, TP/FP/FN, precision, recall and F1 add up the counts over all classes, and mAP50 is the mean over the classes that have test labels. See Step 5.3 for what the metrics mean. `Oracle_F1` is the best F1 possible on the test images, as an upper bound.
+* `qualitative/`: the two best and two worst test images, with correct predictions in green, false detections in red and missed boxes in blue. Each box is labeled with its class name: above the box for predictions, below it for missed boxes, so a prediction with the wrong class shows both names.
+
+`yolo_eval.py` (Step 5) is the resolution study on COWC, VEDAI and Angel, and doesn't work on new data.

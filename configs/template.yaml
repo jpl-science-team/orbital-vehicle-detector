@@ -5,6 +5,7 @@
 # Expected folder layout (one .txt label file per image, with the same name):
 #   <path>/images/train/tile_001.png    <path>/labels/train/tile_001.txt
 #   <path>/images/val/tile_101.png      <path>/labels/val/tile_101.txt
+#   <path>/images/test/tile_201.png     <path>/labels/test/tile_201.txt
 # Ultralytics finds each label by replacing "images" with "labels" in the image path.
 #
 # Each line of a label file is one object, as an oriented box:
@@ -19,7 +20,8 @@ path: data/my_data
 
 # EDIT if your split folders have other names. Paths are relative to 'path'.
 train: images/train   # images the model learns from
-val: images/val       # images checked after every epoch; picks best.pt and stops training early
+val: images/val       # checked after every epoch (picks best.pt); also picks the confidence thresholds in evaluation
+test: images/test     # only used by src/yolo_eval_dataset.py, for the final scores; never seen in training
 
 # EDIT: class names, numbered from 0 in the same order as the class IDs in your labels.
 names:

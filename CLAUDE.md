@@ -32,6 +32,9 @@ python src/preprocess_rq1_datasets.py --raw-dir data --cowc-refined-dir ../label
 python src/yolo_eval.py --models <a.pt> [<b.pt> ...] --test-dir test_data --val-data configs/cowc_512.yaml --train-imgsz 640   # must match train.py --img_size
 python src/detr_eval.py --config <cfg.py> --models <ckpt.pth> --test-dir test_data
 
+# Per-class evaluation on the test split of any dataset YAML (new data, native resolution)
+python src/yolo_eval_dataset.py --models <best.pt> --data configs/<my_data>.yaml --imgsz 512
+
 # YOLO vs RT-DETR comparison plots -> Comparison_Plots/
 python src/compare_models.py --yolo-csv Eval_Results_YOLO_<name>/rq1_summary_metrics.csv --detr-csv Eval_Results_RTDETR_<name>/rq1_summary_metrics.csv
 ```
@@ -52,5 +55,7 @@ Run training inside `tmux`, because jobs can take hours or days.
 **Shared eval package (`src/eval/`):** `config`, `parsers`, `metrics` (matching, peak-F1/ROC) and `visualization` (qualitative best/worst images, PPT plots). The scripts import it as `from eval...`, which works because `src/` is on `sys.path` when you run `python src/<script>.py`. Both `yolo_eval.py` and `detr_eval.py` write `Eval_Results_{YOLO,RTDETR}_<weights-stem>/` containing `rq1_summary_metrics.csv`, `rq1_paper_table.tex`, `RQ1_ANSWER_SUMMARY.md`, `ppt_plots/` and `qualitative/`. Those result folders are committed. `evaluate_vedai.py` is an older standalone VEDAI evaluator that duplicates some of the metric code.
 
 **O2-RT-DETR:** this is a vendored copy of the upstream repo (the `ai4rs` package plus `projects/rotated_rtdetr`). The project-specific configs are `projects/rotated_rtdetr/configs/cowc_rtdetr_{128,256,512}.py`. Each one inherits `o2_rtdetr_r50vd_2xb4_72e_dota`, sets `num_classes=1` / `classes=('vehicle',)`, and adds `./O2-RT-DETR` to `sys.path`. `detr_eval.py` and `detr_on_image.py` monkey-patch the mmdet/mmrotate registries (box converters, transforms build, prob-IoU, the DINO transformer forward) so that imports and inference don't crash. Keep those patches when you change the DETR scripts.
+
+**New data (`yolo_eval_dataset.py`):** independent of the RQ1 code paths (no `DATASET_VARIANTS`, GSD or `test_data/`). It reads the `val` and `test` splits of a dataset YAML through Ultralytics' `check_det_dataset`/`img2label_paths`, matches predictions to labels of the same class with `match_polygons`, picks one best-F1 threshold per class on `val`, and writes `Eval_Results_YOLO_<model>_<yaml-stem>/{summary_metrics.csv,SUMMARY.md,qualitative/}`. `configs/template.yaml` is the starting point for new dataset files.
 
 **Misc utilities:** `inf_on_image.py` and `detr_on_image.py` run single-image inference. `viewer.py` lets you browse predictions on dataset splits. `convert_coco.py` converts a COCO JSON export into Angel `.txt` labels. `upscale_angel.py` and `prepare_vedai.py` are one-off data prep scripts.
