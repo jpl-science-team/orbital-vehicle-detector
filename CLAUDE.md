@@ -40,12 +40,12 @@ Run training inside `tmux`, because jobs can take hours or days.
 
 ## Architecture
 
-**Data layout (gitignored):** `data/` holds the raw datasets and must be treated as read-only. `data/cowc_512/dataset.yaml` has to contain an absolute path that matches the local machine. The DETR configs read DOTA-format data from `data/cowc_512_degraded_dota/{train,val}/annfiles/`. `test_data/<Dataset>/<variant>/{images,labels}` is the evaluation sandbox. `models/`, `runs/` and `*.pt` are also gitignored. YOLO training runs land in `runs/obb/runs/detect/<timestamp>_yolo11n_res<imgsz>/` (Ultralytics prefixes `runs/obb/` to `project="runs/detect"` for OBB models).
+**Data layout (gitignored):** `data/` holds the raw datasets and must be treated as read-only. `data/cowc_512/dataset.yaml` has to contain an absolute path that matches the local machine. The DETR configs read DOTA-format data from `data/cowc_512_degraded_dota/{train,val}/annfiles/`. `test_data/<Dataset>/<variant>/{images,labels}` is the evaluation sandbox. `preprocess_rq1_datasets.py` also reads `../label-refiner/` for COWC, so that repo has to be checked out next to this one. `models/`, `runs/` and `*.pt` are also gitignored. YOLO training runs land in `runs/obb/runs/detect/<timestamp>_yolo11n_res<imgsz>/` (Ultralytics prefixes `runs/obb/` to `project="runs/detect"` for OBB models).
 
 **GSD variants:** `src/eval/config.py::DATASET_VARIANTS` is the single source of truth for which variants exist (COWC/VEDAI: `15cm_base`, `30cm_{naive,scalenorm}`, `60cm_{naive,scalenorm}`; Angel: `50cm_base`, `30cm_upscale`, `15cm_upscale`). `preprocess_rq1_datasets.py` generates them, and `eval/parsers.py::parse_gsd_and_deg_type` turns variant names back into a GSD and degradation type. If you add a variant, keep all three in sync.
 
 **Label formats differ per dataset, and the evaluators branch on them:**
-- COWC uses center points only, so it's matched by pixel distance (`match_cowc_points`, `--dist-thr`).
+- COWC uses oriented boxes (`0 x1 y1 .. x4 y4`, pixels). `preprocess_rq1_datasets.py` builds them from the test tiles and SAM-refined labels in the sibling `label-refiner` repo (`../label-refiner/datasets_refined/COWC_512/test`, read-only), not from `data/`. They're matched by polygon IoU by default; `--cowc-scoring point` matches box centers by pixel distance instead (`match_cowc_points`, `--dist-thr`), like the original COWC point labels. About 7% of the boxes are label-refiner's 32x32 fallback squares.
 - VEDAI uses the raw 14/15-field format (`cx cy angle class cont occl x1..x4 y1..y4`). Only classes 1 and 11 count as vehicles. Other classes become "ignore" regions, and predictions that land on them are filtered out (`filter_ignored_predictions`).
 - Angel uses 8-point polygons (optionally prefixed with a class ID), matched by polygon IoU (`match_polygons`, Shapely).
 

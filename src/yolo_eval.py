@@ -43,6 +43,7 @@ def main():
             if args.datasets and ds not in args.datasets: continue
             if args.variants: variants = [v for v in variants if v in args.variants]
             is_cowc = (ds == "COWC")
+            cowc_points = is_cowc and args.cowc_scoring == "point"
             is_vedai = (ds == "VEDAI")
             print(f"\n--- DATASET: {ds} ---")
             
@@ -58,7 +59,7 @@ def main():
                 for img_p in img_paths:
                     if not img_p.lower().endswith(('.png', '.jpg', '.tif')): continue
                     
-                    gt_items = parse_label_file(lbl_dir / f"{Path(img_p).stem}.txt", is_cowc=is_cowc, is_vedai=is_vedai)
+                    gt_items = parse_label_file(lbl_dir / f"{Path(img_p).stem}.txt", is_cowc=is_cowc, is_vedai=is_vedai, cowc_boxes=not cowc_points)
                     total_gts += len([gt for gt in gt_items if not isinstance(gt, dict) or gt.get('class') == 0])
 
                     raw_img = cv2.imread(img_p)
@@ -75,7 +76,7 @@ def main():
                         pred_polys = [b.reshape(8).tolist() for b in results.obb.xyxyxyxy.cpu().numpy()]
                         pred_scores = results.obb.conf.cpu().numpy().tolist()
 
-                    if is_cowc:
+                    if cowc_points:
                         tps, fps, fns, match_dists = match_cowc_points(pred_polys, pred_scores, gt_items, dist_thr_px)
                         all_distances.extend(match_dists)
                     elif is_vedai:
@@ -146,13 +147,13 @@ def main():
                     for idx, frame in enumerate(sorted_frames[:2], 1):
                         raw_img = cv2.imread(frame["img_path"])
                         if raw_img is not None:
-                            vis = draw_annotations(raw_img, frame["opt_tps"], frame["opt_fps"], frame["opt_fns"], is_cowc)
+                            vis = draw_annotations(raw_img, frame["opt_tps"], frame["opt_fps"], frame["opt_fns"], cowc_points)
                             cv2.imwrite(str(deg_qual_dir / f"best_{idx}_{frame['stem']}.png"), vis)
                     # Worst-first, so worst_1 is the lowest-scoring frame
                     for idx, frame in enumerate(sorted_frames[::-1][:2], 1):
                         raw_img = cv2.imread(frame["img_path"])
                         if raw_img is not None:
-                            vis = draw_annotations(raw_img, frame["opt_tps"], frame["opt_fps"], frame["opt_fns"], is_cowc)
+                            vis = draw_annotations(raw_img, frame["opt_tps"], frame["opt_fps"], frame["opt_fns"], cowc_points)
                             cv2.imwrite(str(deg_qual_dir / f"worst_{idx}_{frame['stem']}.png"), vis)
 
         df_results = pd.DataFrame(summary_records)

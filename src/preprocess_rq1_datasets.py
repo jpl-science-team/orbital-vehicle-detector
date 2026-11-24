@@ -8,6 +8,8 @@ from pathlib import Path
 # ---------------------------------------------------------
 RAW_DATA_DIR = Path("data")       # STRICTLY READ-ONLY
 SANDBOX_DIR = Path("test_data")   # ALL EXPERIMENTAL OUTPUTS SAVED HERE
+# COWC test tiles with SAM-refined OBB labels from the label-refiner repo (STRICTLY READ-ONLY)
+COWC_REFINED_DIR = Path("../label-refiner/datasets_refined/COWC_512/test")
 
 VALID_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 
@@ -72,14 +74,14 @@ def convert_angel_label(line, img_w, img_h):
     return {'type': 'angel', 'coords': pixel_coords, 'class_id': class_id}
 
 
-def convert_cowc_label(line):
-    """Parses raw COWC centerpoint coordinates."""
+def convert_cowc_label(line, img_w, img_h):
+    """Parses a label-refiner YOLO OBB line (class x1 y1 .. x4 y4, normalized) into pixel coordinates."""
     parts = line.strip().split()
-    if len(parts) == 2:
-        return {'type': 'cowc', 'x': float(parts[0]), 'y': float(parts[1])}
-    elif len(parts) >= 3:
-        return {'type': 'cowc', 'x': float(parts[1]), 'y': float(parts[2])}
-    return None
+    if len(parts) < 9:
+        return None
+    raw_coords = [float(x) for x in parts[1:9]]
+    pixel_coords = [c * (img_w if i % 2 == 0 else img_h) for i, c in enumerate(raw_coords)]
+    return {'type': 'cowc', 'coords': pixel_coords}
 
 
 def convert_vedai_label(line):
@@ -121,10 +123,8 @@ def convert_vedai_label(line):
 # ---------------------------------------------------------
 def scale_target(t, scale):
     """Mathematically scales coordinates based on label type."""
-    if t['type'] == 'angel':
+    if t['type'] in ('angel', 'cowc'):
         return {**t, 'coords': [c * scale for c in t['coords']]}
-    elif t['type'] == 'cowc':
-        return {**t, 'x': t['x'] * scale, 'y': t['y'] * scale}
     elif t['type'] == 'vedai':
         return {
             **t,
@@ -149,7 +149,8 @@ def save_variants(output_ds_dir, file_stem, variants):
         with open(lbl_out / f"{file_stem}.txt", "w") as f:
             for t in v_targets:
                 if t['type'] == 'cowc':
-                    f.write(f"0 {t['x']:.2f} {t['y']:.2f}\n")
+                    str_coords = " ".join([f"{c:.2f}" for c in t['coords']])
+                    f.write(f"0 {str_coords}\n")
                 elif t['type'] == 'angel':
                     str_coords = " ".join([f"{c:.2f}" for c in t['coords']])
                     f.write(f"{str_coords} vehicle {t['class_id']}\n")
@@ -257,23 +258,24 @@ def run_preprocessing():
         variants = build_angel_variants(img, targets)
         save_variants(SANDBOX_DIR / "Angel", stem, variants)
 
-    # 2. COWC (Native 15cm GSD)
-    cowc_base = RAW_DATA_DIR / "COWC"
-    cowc_imgs = get_image_files(cowc_base / "images") if (cowc_base / "images").exists() else get_image_files(cowc_base)
-    print(f"Processing COWC Dataset ({len(cowc_imgs)} images - Native 15cm Centerpoints)...")
+    # 2. COWC (Native 15cm GSD, label-refiner test tiles with OBB labels)
+    cowc_base = COWC_REFINED_DIR
+    cowc_imgs = get_image_files(cowc_base / "images")
+    print(f"Processing COWC Dataset ({len(cowc_imgs)} images from {cowc_base} - Native 15cm OBBs)...")
     
     for img_p in cowc_imgs:
         stem = Path(img_p).stem
-        lbl_p = find_label_file(cowc_base, stem)
+        lbl_p = cowc_base / "labels" / f"{stem}.txt"
         img = cv2.imread(img_p)
         if img is None: 
             continue
+        h, w = img.shape[:2]
 
         targets = []
-        if lbl_p and lbl_p.exists():
+        if lbl_p.exists():
             with open(lbl_p, "r") as f:
                 for line in f:
-                    pt = convert_cowc_label(line)
+                    pt = convert_cowc_label(line, w, h)
                     if pt: 
                         targets.append(pt)
 
